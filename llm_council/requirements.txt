@@ -3,3 +3,8 @@ anthropic
 google-generativeai
 pydantic
 python-dotenv
+fastapi
+uvicorn
+python-multipart
+pdfplumber
+python-docx
