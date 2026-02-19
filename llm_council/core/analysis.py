@@ -5,7 +5,7 @@ from models.gemini_model import call_gemini
 from config.prompts import ANALYSIS_PROMPT
 from config.golden_clauses import GOLDEN_CLAUSES
 from core.schemas import AnalysisOutput
-
+from models.utils import safe_llm_call
 
 async def initial_analysis(clause_text):
 
@@ -27,8 +27,7 @@ async def initial_analysis(clause_text):
     results = {}
 
     for name, fn in models.items():
-        raw = await fn(prompt)
-        validated = AnalysisOutput(**raw)
-        results[name] = validated.model_dump()
+        result = await safe_llm_call(fn, prompt, AnalysisOutput)
+        results[name] = result
 
     return results
