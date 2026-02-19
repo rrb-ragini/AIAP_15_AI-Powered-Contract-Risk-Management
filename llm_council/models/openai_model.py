@@ -1,5 +1,5 @@
 import json
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 
 def _clean_json(raw_text: str):
@@ -11,9 +11,9 @@ def _clean_json(raw_text: str):
 
 async def call_openai(prompt: str, api_key: str):
 
-    client = OpenAI(api_key=api_key)
+    client = AsyncOpenAI(api_key=api_key)
 
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model="gpt-4o",
         temperature=0,
         messages=[{"role": "user", "content": prompt}]

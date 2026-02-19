@@ -36,59 +36,75 @@ async def run_pipeline(contract_text):
     logging.info(f"Segmented contract into {len(clauses)} clauses.")
     results = []
 
-    for index, clause in enumerate(clauses):
+    async def process_clause(index, clause):
         clause_id = clause["clause_id"]
         clause_text = clause["clause_text"]
-        logging.info(f"Processing clause {index + 1}/{len(clauses)} (ID: {clause_id})...")
+        try:
+            logging.info(f"Processing clause {index + 1}/{len(clauses)} (ID: {clause_id})...")
 
-        logging.info("Running initial analysis...")
-        initial_outputs = await initial_analysis(clause_text)
+            logging.info(f"Running initial analysis for clause {clause_id}...")
+            initial_outputs = await initial_analysis(clause_text)
 
-        # If no model detected golden clause → skip everything
-        if not should_proceed(initial_outputs):
-            logging.info("No golden clause detected. Skipping further analysis.")
-            results.append({
+            # If no model detected golden clause → skip everything
+            if not should_proceed(initial_outputs):
+                logging.info(f"No golden clause detected for clause {clause_id}. Skipping.")
+                return {
+                    "clause_id": clause_id,
+                    "clause_text": clause_text,
+                    "golden_clause_detected": False,
+                    "golden_clause_type": None,
+                    "final_risk_score": 0.0,
+                    "risk_level": "None",
+                    "business_risk_if_ignored": None,
+                    "suggested_correction": None,
+                    "justification": "All models agree this clause is not a golden clause.",
+                    "confidence": 1.0
+                }
+
+            logging.info(f"Golden clause detected in {clause_id}. Proceeding...")
+            anonymized = anonymize_initial_outputs(initial_outputs)
+
+            if needs_review(initial_outputs):
+                logging.info(f"Disagreement detected in {clause_id}. Starting Council Review...")
+                reviews = await review_round(clause_text, initial_outputs)
+            else:
+                logging.info(f"Consensus reached for {clause_id}. Skipping Council Review.")
+                reviews = None
+
+            council_data = {
+                "responses": anonymized,
+                "reviews": reviews
+            }
+
+            logging.info(f"Running arbitration for {clause_id}...")
+            final = await arbitration(clause_text, council_data)
+
+            if not final:
+                raise ValueError(f"Arbitration failed for clause {clause_id}")
+
+            logging.info(f"Finished processing clause {index + 1}.")
+            return {
+                "clause_id": clause_id,
+                **final
+            }
+        except Exception as e:
+            logging.error(f"Error processing clause {clause_id}: {str(e)}")
+            return {
                 "clause_id": clause_id,
                 "clause_text": clause_text,
                 "golden_clause_detected": False,
-                "golden_clause_type": None,
-                "final_risk_score": 0.0,
-                "risk_level": "None",
-                "business_risk_if_ignored": None,
-                "suggested_correction": None,
-                "justification": "All models agree this clause is not a golden clause.",
-                "confidence": 1.0
-            })
-            continue
+                "error": str(e),
+                "risk_level": "Error",
+                "justification": f"Processing failed: {str(e)}"
+            }
 
-        logging.info("Golden clause detected. Proceeding...")
-
-        # Prepare anonymized responses (ALWAYS)
-        # from core.review import anonymize_outputs  # if you have helper
-        anonymized = anonymize_initial_outputs(initial_outputs)
-
-        # Determine if review is needed
-        if needs_review(initial_outputs):
-            logging.info("Disagreement detected. Starting Council Review...")
-            reviews = await review_round(clause_text, initial_outputs)
-        else:
-            logging.info("Consensus reached. Skipping Council Review.")
-            reviews = None
-
-        council_data = {
-            "responses": anonymized,
-            "reviews": reviews
-        }
-
-        logging.info("Running arbitration...")
-        final = await arbitration(clause_text, council_data)
-
-        results.append({
-            "clause_id": clause_id,
-            **final
-        })
-        logging.info(f"Finished processing clause {index + 1}.")
-
+    # Process clauses in batches to balance speed and rate limits
+    batch_size = 3
+    for i in range(0, len(clauses), batch_size):
+        batch = clauses[i:i + batch_size]
+        tasks = [process_clause(i + j, clause) for j, clause in enumerate(batch)]
+        batch_results = await asyncio.gather(*tasks)
+        results.extend(batch_results)
 
     logging.info("Pipeline completed.")
     return results

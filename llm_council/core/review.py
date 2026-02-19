@@ -17,6 +17,9 @@ async def review_round(clause_text, initial_outputs):
 
     anonymized = {}
     for label, (_, value) in zip(labels, initial_outputs.items()):
+        if value is None:
+            anonymized[label] = {"error": "Model failed to respond"}
+            continue
         v = dict(value)
         v.pop("confidence", None)  # remove bias field if exists
         anonymized[label] = v

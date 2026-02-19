@@ -1,5 +1,5 @@
 import json
-import anthropic
+from anthropic import AsyncAnthropic
 
 
 def _clean_json(raw_text: str):
@@ -11,9 +11,9 @@ def _clean_json(raw_text: str):
 
 async def call_claude(prompt: str, api_key: str):
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = AsyncAnthropic(api_key=api_key)
 
-    message = client.messages.create(
+    message = await client.messages.create(
         model="claude-3-haiku-20240307",
         max_tokens=2000,
         temperature=0,

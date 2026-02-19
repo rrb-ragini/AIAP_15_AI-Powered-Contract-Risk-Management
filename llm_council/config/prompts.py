@@ -157,7 +157,7 @@ Return strictly valid JSON in this exact format and NOTHING ELSE:
   "clause_text": "...",
   "golden_clause_detected": true/false,
   "golden_clause_type": "...",
-  ""final_risk_score": float (0–10),
+  "final_risk_score": float (0–10),
   "risk_level": "Low" | "Moderate" | "High",
   "business_risk_if_ignored": "...",
   "suggested_correction": "...",

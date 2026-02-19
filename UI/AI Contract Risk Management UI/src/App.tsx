@@ -14,6 +14,7 @@ interface AppState {
   selectedContractId?: string;
   analysisResults?: any;
   dashboardStats?: any;
+  contractText?: string;
 }
 
 export default function App() {
@@ -40,7 +41,8 @@ export default function App() {
       setAppState({
         view: 'review',
         analysisResults: data.results,
-        selectedContractId: data.filename
+        selectedContractId: data.filename,
+        contractText: data.contract_text
       });
       fetchStats(); // Refresh stats after analysis
     } else {
@@ -58,7 +60,7 @@ export default function App() {
       case 'upload':
         return <UploadContract onViewChange={handleViewChange} />;
       case 'review':
-        return <ContractReview results={appState.analysisResults} filename={appState.selectedContractId} />;
+        return <ContractReview results={appState.analysisResults} filename={appState.selectedContractId} contractText={appState.contractText} />;
       case 'reports':
         return <RiskReport results={appState.analysisResults} />;
       case 'library':
