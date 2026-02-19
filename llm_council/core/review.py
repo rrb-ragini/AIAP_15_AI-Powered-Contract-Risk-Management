@@ -7,6 +7,7 @@ from core.schemas import SingleReviewOutput
 from models.openai_model import call_openai
 from models.claude_model import call_claude
 from models.gemini_model import call_gemini
+from models.utils import safe_llm_call
 
 
 async def review_round(clause_text, initial_outputs):
@@ -33,25 +34,31 @@ async def review_round(clause_text, initial_outputs):
 
     # -------- STEP 4: Call all reviewers --------
     tasks = [
-        call_openai(prompt, api_key=os.getenv("OPENAI_API_KEY")),
-        call_claude(prompt, api_key=os.getenv("ANTHROPIC_API_KEY")),
-        call_gemini(prompt, api_key=os.getenv("GOOGLE_API_KEY")),
+        safe_llm_call(
+            lambda p: call_openai(p, api_key=os.getenv("OPENAI_API_KEY")),
+            prompt,
+            SingleReviewOutput
+        ),
+        safe_llm_call(
+            lambda p: call_claude(p, api_key=os.getenv("ANTHROPIC_API_KEY")),
+            prompt,
+            SingleReviewOutput
+        ),
+        safe_llm_call(
+            lambda p: call_gemini(p, api_key=os.getenv("GOOGLE_API_KEY")),
+            prompt,
+            SingleReviewOutput
+        ),
     ]
 
-    raw_results = await asyncio.gather(*tasks)
+    validated_results = await asyncio.gather(*tasks)
+
 
     reviewer_names = ["Reviewer_1", "Reviewer_2", "Reviewer_3"]
 
     reviews = {}
-    for name, raw in zip(reviewer_names, raw_results):
-        # Auto-repair missing fields
-        for label in ["Response A", "Response B", "Response C"]:
-            if "evaluation" in raw and label in raw["evaluation"]:
-                raw["evaluation"][label].setdefault("strengths", "")
-                raw["evaluation"][label].setdefault("weaknesses", "")
-
-        validated = SingleReviewOutput(**raw)
-        reviews[name] = validated.model_dump()
+    for name, result in zip(reviewer_names, validated_results):
+        reviews[name] = result
 
     return {
         "responses": anonymized,
