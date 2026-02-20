@@ -1,4 +1,5 @@
 import json
+import asyncio
 from google import genai
 
 
@@ -13,7 +14,9 @@ async def call_gemini(prompt: str, api_key: str):
 
     client = genai.Client(api_key=api_key)
 
-    response = client.models.generate_content(
+    # Use to_thread to avoid blocking the event loop
+    response = await asyncio.to_thread(
+        client.models.generate_content,
         model="gemini-2.5-flash",
         contents=prompt
     )

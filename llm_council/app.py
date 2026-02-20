@@ -83,7 +83,8 @@ async def analyze_contract(file: UploadFile = File(...)):
         return {
             "filename": file.filename,
             "results": results,
-            "overall_stats": stats
+            "overall_stats": stats,
+            "contract_text": contract_text
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
