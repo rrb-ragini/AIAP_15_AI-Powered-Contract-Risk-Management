@@ -7,11 +7,48 @@ from core.arbitration import arbitration
 from core.disagreement import should_proceed, needs_review
 from dotenv import load_dotenv
 
+# Custom logging formatter for colors
+class ColorFormatter(logging.Formatter):
+    GREY = "\x1b[38;20m"
+    BOLD_GREEN = "\x1b[32;1m"
+    YELLOW = "\x1b[33;20m"
+    RED = "\x1b[31;20m"
+    BOLD_RED = "\x1b[31;1m"
+    CYAN = "\x1b[36;20m"     # For stages/status
+    MAGENTA = "\x1b[35;20m"  # For clause loop
+    RESET = "\x1b[0m"
+    
+    FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+
+    FORMATS = {
+        logging.DEBUG: GREY + FORMAT + RESET,
+        logging.INFO: GREY + FORMAT + RESET,
+        logging.WARNING: YELLOW + FORMAT + RESET,
+        logging.ERROR: RED + FORMAT + RESET,
+        logging.CRITICAL: BOLD_RED + FORMAT + RESET
+    }
+
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno)
+        message = record.getMessage() # Get the formatted message
+        
+        # Apply specific colors for specific messages
+        if "Starting pipeline..." in message or "Pipeline completed." in message:
+             log_fmt = self.BOLD_GREEN + self.FORMAT + self.RESET
+        elif "Processing clause" in message:
+             log_fmt = self.MAGENTA + self.FORMAT + self.RESET
+        elif any(x in message for x in ["Running arbitration", "Disagreement detected", "Consensus reached", "Golden clause detected", "Running initial analysis"]):
+             log_fmt = self.CYAN + self.FORMAT + self.RESET
+             
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
+
 # Configure logging
+handler = logging.StreamHandler()
+handler.setFormatter(ColorFormatter())
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()]
+    handlers=[handler]
 )
 
 load_dotenv()
