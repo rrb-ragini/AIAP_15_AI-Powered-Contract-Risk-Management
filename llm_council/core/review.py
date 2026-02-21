@@ -1,13 +1,19 @@
 import os
 import json
 import asyncio
+import logging
 
 from config.prompts import REVIEW_PROMPT
 from core.schemas import SingleReviewOutput
-from models.openai_model import call_openai
-from models.claude_model import call_claude
-from models.gemini_model import call_gemini
+from models.registry import get_active_models
 from models.utils import safe_llm_call
+
+# Map model name → environment variable for API key
+_API_KEY_MAP = {
+    "openai": lambda: os.getenv("OPENAI_API_KEY"),
+    "claude": lambda: os.getenv("ANTHROPIC_API_KEY"),
+    "gemini": lambda: os.getenv("GOOGLE_API_KEY"),
+}
 
 
 async def review_round(clause_text, initial_outputs):
@@ -35,32 +41,26 @@ async def review_round(clause_text, initial_outputs):
         responses_text=responses_text
     )
 
-    # -------- STEP 4: Call all reviewers --------
+    # -------- STEP 4: Call all active reviewers (from registry) --------
+    active_models = get_active_models()
+    reviewer_names = [f"Reviewer_{i+1}" for i in range(len(active_models))]
+
     tasks = [
         safe_llm_call(
-            lambda p: call_openai(p, api_key=os.getenv("OPENAI_API_KEY")),
+            lambda p, fn=fn, name=name: fn(p, api_key=_API_KEY_MAP[name]()),
             prompt,
             SingleReviewOutput
-        ),
-        safe_llm_call(
-            lambda p: call_claude(p, api_key=os.getenv("ANTHROPIC_API_KEY")),
-            prompt,
-            SingleReviewOutput
-        ),
-        safe_llm_call(
-            lambda p: call_gemini(p, api_key=os.getenv("GOOGLE_API_KEY")),
-            prompt,
-            SingleReviewOutput
-        ),
+        )
+        for name, fn in active_models.items()
     ]
 
     validated_results = await asyncio.gather(*tasks)
 
-
-    reviewer_names = ["Reviewer_1", "Reviewer_2", "Reviewer_3"]
-
+    # Warn if any reviewer failed
     reviews = {}
     for name, result in zip(reviewer_names, validated_results):
+        if result is None:
+            logging.warning(f"{name} returned no result during review round.")
         reviews[name] = result
 
     return {
