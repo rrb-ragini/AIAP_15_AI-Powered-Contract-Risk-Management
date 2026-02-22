@@ -1,53 +1,58 @@
-import os
 import json
 import asyncio
 import logging
 
 from config.prompts import REVIEW_PROMPT
 from core.schemas import SingleReviewOutput
-from models.registry import get_active_models
+from models.registry import get_active_models, API_KEY_MAP
 from models.utils import safe_llm_call
-
-# Map model name → environment variable for API key
-_API_KEY_MAP = {
-    "openai": lambda: os.getenv("OPENAI_API_KEY"),
-    "claude": lambda: os.getenv("ANTHROPIC_API_KEY"),
-    "gemini": lambda: os.getenv("GOOGLE_API_KEY"),
-}
 
 
 async def review_round(clause_text, initial_outputs):
 
-    # -------- STEP 1: Anonymize responses --------
-    labels = ["Response A", "Response B", "Response C"]
+    active_models = get_active_models()
+    n_models = len(active_models)
 
+    # -------- STEP 1: Build dynamic labels (A, B, C, ...) --------
+    # Note: REVIEW_PROMPT expects the same labels in its JSON template.
+    # If n_models != 3 the prompt JSON template won't perfectly match the
+    # actual responses. Log a warning so this is visible.
+    label_letters = [chr(ord("A") + i) for i in range(n_models)]
+    labels = [f"Response {l}" for l in label_letters]
+    if n_models != 3:
+        logging.warning(
+            f"review_round: {n_models} models active but REVIEW_PROMPT is "
+            "designed for 3. Consider updating the prompt template in "
+            "config/prompts.py to match the actual number of models."
+        )
+
+    # -------- STEP 2: Anonymize responses --------
     anonymized = {}
     for label, (_, value) in zip(labels, initial_outputs.items()):
         if value is None:
             anonymized[label] = {"error": "Model failed to respond"}
             continue
         v = dict(value)
-        v.pop("confidence", None)  # remove bias field if exists
+        v.pop("confidence", None)   # remove bias field
         anonymized[label] = v
 
-    # -------- STEP 2: Build responses_text --------
+    # -------- STEP 3: Build responses_text --------
     responses_text = ""
     for label, content in anonymized.items():
         responses_text += f"{label}:\n{json.dumps(content, indent=2)}\n\n"
 
-    # -------- STEP 3: Format prompt --------
+    # -------- STEP 4: Format prompt --------
     prompt = REVIEW_PROMPT.format(
         clause_text=clause_text,
         responses_text=responses_text
     )
 
-    # -------- STEP 4: Call all active reviewers (from registry) --------
-    active_models = get_active_models()
-    reviewer_names = [f"Reviewer_{i+1}" for i in range(len(active_models))]
+    # -------- STEP 5: Call all active reviewers --------
+    reviewer_names = [f"Reviewer_{i+1}" for i in range(n_models)]
 
     tasks = [
         safe_llm_call(
-            lambda p, fn=fn, name=name: fn(p, api_key=_API_KEY_MAP[name]()),
+            lambda p, fn=fn, name=name: fn(p, api_key=API_KEY_MAP[name]()),
             prompt,
             SingleReviewOutput
         )
@@ -56,7 +61,6 @@ async def review_round(clause_text, initial_outputs):
 
     validated_results = await asyncio.gather(*tasks)
 
-    # Warn if any reviewer failed
     reviews = {}
     for name, result in zip(reviewer_names, validated_results):
         if result is None:

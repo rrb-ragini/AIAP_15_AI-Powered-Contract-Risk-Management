@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Literal
 from config.golden_clauses import GOLDEN_CLAUSES
 
 
@@ -10,7 +10,7 @@ class AnalysisOutput(BaseModel):
     balanced: bool
     justification: str
     key_risk_indicators: List[str]
-    
+
     @field_validator("golden_clause_type")
     def validate_clause_type(cls, v):
         if v is None:
@@ -35,7 +35,7 @@ class ArbitrationOutput(BaseModel):
     golden_clause_detected: bool
     golden_clause_type: Optional[str]
     final_risk_score: float = Field(..., ge=0, le=10)
-    risk_level: str
+    risk_level: Literal["Low", "Moderate", "High"]   # validated at schema level
     business_risk_if_ignored: str
     suggested_correction: str
     justification: str

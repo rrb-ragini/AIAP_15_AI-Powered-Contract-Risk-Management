@@ -59,17 +59,6 @@ logging.basicConfig(
 load_dotenv()
 
 
-def anonymize_initial_outputs(initial_outputs):
-    """
-    Convert model outputs into anonymized Response A/B/C structure.
-    """
-    labels = ["Response A", "Response B", "Response C"]
-
-    anonymized = {}
-    for label, (_, output) in zip(labels, initial_outputs.items()):
-        anonymized[label] = output
-
-    return anonymized
 
 
 async def run_pipeline(contract_text, output_path=None):
@@ -103,6 +92,14 @@ async def run_pipeline(contract_text, output_path=None):
             logging.info(f"Running initial analysis for clause {clause_id}...")
             initial_outputs = await initial_analysis(clause_text)
 
+            # Guard: if every model failed, abort this clause rather than
+            # sending all-None data to arbitration.
+            valid_outputs = [v for v in initial_outputs.values() if v is not None]
+            if not valid_outputs:
+                raise ValueError(
+                    f"All models failed to return a response for clause {clause_id}."
+                )
+
             # If no model detected golden clause → skip everything
             if not should_proceed(initial_outputs):
                 logging.info(f"No golden clause detected for clause {clause_id}. Skipping.")
@@ -121,7 +118,6 @@ async def run_pipeline(contract_text, output_path=None):
 
             n_golden += 1
             logging.info(f"Golden clause detected in {clause_id}. Proceeding...")
-            anonymized = anonymize_initial_outputs(initial_outputs)
 
             review_reason = needs_review(initial_outputs)
             if review_reason:
@@ -129,16 +125,23 @@ async def run_pipeline(contract_text, output_path=None):
                     f"Disagreement detected in {clause_id} "
                     f"(reason: {review_reason}). Starting Council Review..."
                 )
-                reviews = await review_round(clause_text, initial_outputs)
+                # review_round returns {"responses": anonymized, "reviews": {...}}
+                # We reuse its anonymization rather than running it a second time.
+                review_data = await review_round(clause_text, initial_outputs)
                 n_council += 1
+                council_data = review_data
             else:
                 logging.info(f"Consensus reached for {clause_id}. Skipping Council Review.")
-                reviews = None
-
-            council_data = {
-                "responses": anonymized,
-                "reviews": reviews
-            }
+                # Build a simple anonymized view for the arbitrator
+                label_letters = [chr(ord("A") + i) for i in range(len(initial_outputs))]
+                council_data = {
+                    "responses": {
+                        f"Response {l}": v
+                        for l, (_, v) in zip(label_letters, initial_outputs.items())
+                        if v is not None
+                    },
+                    "reviews": None
+                }
 
             logging.info(f"Running arbitration for {clause_id}...")
             final = await arbitration(clause_text, council_data)
