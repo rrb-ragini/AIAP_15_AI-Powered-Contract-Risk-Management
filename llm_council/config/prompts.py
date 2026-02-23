@@ -175,8 +175,8 @@ Risk above 9 must be reserved for extreme exposure.
 
 Risk level mapping:
 0–3  → Low
-4–6  → Moderate
-7–10 → High
+4–7  → Moderate
+8–10 → High
 
 ------------------------------------------------------------
 STEP 3 — AUTHORITATIVE JUSTIFICATION
