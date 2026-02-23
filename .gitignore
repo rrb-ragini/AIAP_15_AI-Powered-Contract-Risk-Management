@@ -1,20 +1,7 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-venv/
-ENV/
+node_modules
+.next
 .env
-stats.json
-
-# Node
-node_modules/
-.next/
-dist/
-build/
-.DS_Store
-
-# IDEs
-.vscode/
-.idea/
+__pycache__
+.venv
+dist
+build
