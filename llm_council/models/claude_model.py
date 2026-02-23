@@ -1,26 +1,25 @@
 import json
+from functools import lru_cache
 from anthropic import AsyncAnthropic
+from models.utils import clean_json
+from config.settings import CLAUDE_MODEL, CLAUDE_MAX_TOKENS
 
 
-def _clean_json(raw_text: str):
-    cleaned = raw_text.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.replace("```json", "").replace("```", "").strip()
-    return cleaned
+@lru_cache(maxsize=4)
+def _get_client(api_key: str) -> AsyncAnthropic:
+    """Cache the client so we reuse connection pools across calls."""
+    return AsyncAnthropic(api_key=api_key)
 
 
 async def call_claude(prompt: str, api_key: str):
-
-    client = AsyncAnthropic(api_key=api_key)
+    client = _get_client(api_key)
 
     message = await client.messages.create(
-        model="claude-3-haiku-20240307",
-        max_tokens=2000,
+        model=CLAUDE_MODEL,
+        max_tokens=CLAUDE_MAX_TOKENS,   # required by Anthropic API; controlled via settings.py
         temperature=0,
         messages=[{"role": "user", "content": prompt}]
     )
 
     raw_text = message.content[0].text
-    cleaned = _clean_json(raw_text)
-
-    return json.loads(cleaned)
+    return json.loads(clean_json(raw_text))

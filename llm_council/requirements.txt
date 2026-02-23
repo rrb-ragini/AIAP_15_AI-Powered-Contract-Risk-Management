@@ -1,6 +1,6 @@
 openai
 anthropic
-google-generativeai
+google-genai
 pydantic
 python-dotenv
 fastapi

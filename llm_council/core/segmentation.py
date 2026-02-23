@@ -1,15 +1,7 @@
-import os
 import logging
 from config.prompts import SEGMENTATION_PROMPT
 from config.settings import SEGMENTATION_MODEL
-from models.registry import MODEL_REGISTRY
-
-# Map model name → environment variable for API key
-_API_KEY_MAP = {
-    "openai": lambda: os.getenv("OPENAI_API_KEY"),
-    "claude": lambda: os.getenv("ANTHROPIC_API_KEY"),
-    "gemini": lambda: os.getenv("GOOGLE_API_KEY"),
-}
+from models.registry import MODEL_REGISTRY, API_KEY_MAP
 
 
 async def segment_contract(contract_text):
@@ -20,7 +12,7 @@ async def segment_contract(contract_text):
     Returns a list of dicts, each with 'clause_id' and 'clause_text'.
     Raises ValueError if the model key is missing or the output is invalid.
     """
-    api_key = _API_KEY_MAP[SEGMENTATION_MODEL]()
+    api_key = API_KEY_MAP[SEGMENTATION_MODEL]()
     if not api_key:
         raise ValueError(
             f"API key for SEGMENTATION_MODEL='{SEGMENTATION_MODEL}' is missing from environment."

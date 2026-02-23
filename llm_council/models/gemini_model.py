@@ -1,27 +1,23 @@
 import json
-import asyncio
+from functools import lru_cache
 from google import genai
+from models.utils import clean_json
+from config.settings import GEMINI_MODEL
 
 
-def _clean_json(raw_text: str):
-    cleaned = raw_text.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.replace("```json", "").replace("```", "").strip()
-    return cleaned
+@lru_cache(maxsize=4)
+def _get_client(api_key: str) -> genai.Client:
+    """Cache the client so we reuse connection pools across calls."""
+    return genai.Client(api_key=api_key)
 
 
 async def call_gemini(prompt: str, api_key: str):
+    client = _get_client(api_key)
 
-    client = genai.Client(api_key=api_key)
-
-    # Use to_thread to avoid blocking the event loop
-    response = await asyncio.to_thread(
-        client.models.generate_content,
-        model="gemini-2.5-flash",
+    response = await client.aio.models.generate_content(
+        model=GEMINI_MODEL,
         contents=prompt
     )
 
     raw_text = response.text
-    cleaned = _clean_json(raw_text)
-
-    return json.loads(cleaned)
+    return json.loads(clean_json(raw_text))
