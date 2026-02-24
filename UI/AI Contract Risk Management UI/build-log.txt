@@ -1,0 +1,73 @@
+
+> AI Contract Risk Management UI@0.1.0 build
+> vite build
+
+[36mvite v6.3.5 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 5 modules transformed.
+[31m✗[39m Build failed in 156ms
+[31merror during build:
+[31m[vite:esbuild] Transform failed with 6 errors:
+C:/Users/User/OneDrive/Desktop/contractsss/AIAP_15_AI-Powered-Contract-Risk-Management/UI/AI Contract Risk Management UI/src/components/UploadContract.tsx:37:9: ERROR: The symbol "file" has already been declared
+C:/Users/User/OneDrive/Desktop/contractsss/AIAP_15_AI-Powered-Contract-Risk-Management/UI/AI Contract Risk Management UI/src/components/UploadContract.tsx:37:15: ERROR: The symbol "setFile" has already been declared
+C:/Users/User/OneDrive/Desktop/contractsss/AIAP_15_AI-Powered-Contract-Risk-Management/UI/AI Contract Risk Management UI/src/components/UploadContract.tsx:145:14: ERROR: Unexpected closing "CardContent" tag does not match opening "div" tag
+C:/Users/User/OneDrive/Desktop/contractsss/AIAP_15_AI-Powered-Contract-Risk-Management/UI/AI Contract Risk Management UI/src/components/UploadContract.tsx:146:12: ERROR: Unexpected closing "Card" tag does not match opening "div" tag
+C:/Users/User/OneDrive/Desktop/contractsss/AIAP_15_AI-Powered-Contract-Risk-Management/UI/AI Contract Risk Management UI/src/components/UploadContract.tsx:205:0: ERROR: The character "}" is not valid inside a JSX element
+...[31m
+file: [36mC:/Users/User/OneDrive/Desktop/contractsss/AIAP_15_AI-Powered-Contract-Risk-Management/UI/AI Contract Risk Management UI/src/components/UploadContract.tsx:37:9[31m
+[33m
+[33mThe symbol "file" has already been declared[33m
+35 |    };
+36 |  
+37 |    const [file, setFile] = useState<File | null>(null);
+   |           ^
+38 |  
+39 |    const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+[33mThe symbol "setFile" has already been declared[33m
+35 |    };
+36 |  
+37 |    const [file, setFile] = useState<File | null>(null);
+   |                 ^
+38 |  
+39 |    const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+[33mUnexpected closing "CardContent" tag does not match opening "div" tag[33m
+143|                  Analyze Contract (Background)
+144|                </Button>
+145|              </CardContent>
+   |                ^
+146|            </Card>
+147|          </div>
+
+[33mUnexpected closing "Card" tag does not match opening "div" tag[33m
+144|                </Button>
+145|              </CardContent>
+146|            </Card>
+   |              ^
+147|          </div>
+148|  
+
+[33mThe character "}" is not valid inside a JSX element[33m
+203|        </div>
+204|        );
+205|  }
+   |  ^
+206|  
+
+[33mUnexpected end of file before a closing "div" tag[33m
+204|        );
+205|  }
+206|  
+   |  ^
+[31m
+    at failureErrorWithLog (C:\Users\User\OneDrive\Desktop\contractsss\AIAP_15_AI-Powered-Contract-Risk-Management\UI\AI Contract Risk Management UI\node_modules\esbuild\lib\main.js:1467:15)
+    at C:\Users\User\OneDrive\Desktop\contractsss\AIAP_15_AI-Powered-Contract-Risk-Management\UI\AI Contract Risk Management UI\node_modules\esbuild\lib\main.js:736:50
+    at responseCallbacks.<computed> (C:\Users\User\OneDrive\Desktop\contractsss\AIAP_15_AI-Powered-Contract-Risk-Management\UI\AI Contract Risk Management UI\node_modules\esbuild\lib\main.js:603:9)
+    at handleIncomingPacket (C:\Users\User\OneDrive\Desktop\contractsss\AIAP_15_AI-Powered-Contract-Risk-Management\UI\AI Contract Risk Management UI\node_modules\esbuild\lib\main.js:658:12)
+    at Socket.readFromStdout (C:\Users\User\OneDrive\Desktop\contractsss\AIAP_15_AI-Powered-Contract-Risk-Management\UI\AI Contract Risk Management UI\node_modules\esbuild\lib\main.js:581:7)
+    at Socket.emit (node:events:508:28)
+    at addChunk (node:internal/streams/readable:559:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
+    at Readable.push (node:internal/streams/readable:390:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)[39m

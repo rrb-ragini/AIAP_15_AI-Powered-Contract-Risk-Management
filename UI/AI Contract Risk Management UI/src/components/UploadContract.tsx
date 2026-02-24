@@ -2,19 +2,15 @@ import { useState } from 'react';
 import { Upload, FileText, CheckCircle } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface UploadContractProps {
-  onViewChange: (view: string, contractId?: string) => void;
+  onViewChange: (view: string, contractId?: string | { file: File, filename: string }) => void;
 }
 
 export function UploadContract({ onViewChange }: UploadContractProps) {
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [industry, setIndustry] = useState('');
-  const [contractType, setContractType] = useState('');
+  const [file, setFile] = useState<File | null>(null);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -32,11 +28,10 @@ export function UploadContract({ onViewChange }: UploadContractProps) {
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setFile(e.dataTransfer.files[0]);
       setFileName(e.dataTransfer.files[0].name);
     }
   };
-
-  const [file, setFile] = useState<File | null>(null);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -46,39 +41,19 @@ export function UploadContract({ onViewChange }: UploadContractProps) {
   };
 
   const handleAnalyze = async () => {
-    if (!file || !industry || !contractType) return;
-
-    setAnalyzing(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('http://localhost:8000/analyze', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Analysis failed');
-
-      const data = await response.json();
-      setAnalyzing(false);
-      onViewChange('review', data);
-    } catch (error) {
-      console.error('Error during analysis:', error);
-      setAnalyzing(false);
-      alert('Failed to analyze contract. Please ensure the backend is running.');
-    }
+    if (!file || !fileName) return;
+    onViewChange('start-analysis', { file, filename: fileName } as any);
   };
 
   const steps = [
     { number: 1, label: 'Upload', status: fileName ? 'complete' : 'current' },
-    { number: 2, label: 'Clause Detection', status: analyzing ? 'current' : 'pending' },
-    { number: 3, label: 'Risk Analysis', status: analyzing ? 'current' : 'pending' },
+    { number: 2, label: 'Clause Detection', status: 'pending' },
+    { number: 3, label: 'Risk Analysis', status: 'pending' },
     { number: 4, label: 'Report Generation', status: 'pending' }
   ];
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-50">
+    <div className="flex-1 overflow-auto bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-border px-8 py-6">
         <h1 className="text-2xl font-semibold text-gray-900">Upload Contract for Risk Analysis</h1>
@@ -87,7 +62,7 @@ export function UploadContract({ onViewChange }: UploadContractProps) {
         </p>
       </div>
 
-      <div className="p-8">
+      <div className="p-8 flex-1">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Upload Area */}
@@ -101,8 +76,8 @@ export function UploadContract({ onViewChange }: UploadContractProps) {
                     onDragOver={handleDrag}
                     onDrop={handleDrop}
                     className={`border-2 border-dashed rounded-lg p-12 transition-colors ${dragActive
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 bg-gray-50'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-300 bg-gray-50'
                       }`}
                   >
                     <div className="flex flex-col items-center justify-center space-y-4">
@@ -118,7 +93,10 @@ export function UploadContract({ onViewChange }: UploadContractProps) {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setFileName(null)}
+                            onClick={() => {
+                              setFileName(null);
+                              setFile(null);
+                            }}
                           >
                             Remove File
                           </Button>
@@ -154,52 +132,13 @@ export function UploadContract({ onViewChange }: UploadContractProps) {
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Configuration Options */}
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="industry">Select Industry</Label>
-                    <Select value={industry} onValueChange={setIndustry}>
-                      <SelectTrigger id="industry">
-                        <SelectValue placeholder="Choose industry..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="technology">Technology</SelectItem>
-                        <SelectItem value="finance">Finance</SelectItem>
-                        <SelectItem value="healthcare">Healthcare</SelectItem>
-                        <SelectItem value="retail">Retail</SelectItem>
-                        <SelectItem value="manufacturing">Manufacturing</SelectItem>
-                        <SelectItem value="real-estate">Real Estate</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="contract-type">Select Contract Type</Label>
-                    <Select value={contractType} onValueChange={setContractType}>
-                      <SelectTrigger id="contract-type">
-                        <SelectValue placeholder="Choose contract type..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="service">Service Agreement</SelectItem>
-                        <SelectItem value="license">License Agreement</SelectItem>
-                        <SelectItem value="employment">Employment Contract</SelectItem>
-                        <SelectItem value="nda">Non-Disclosure Agreement</SelectItem>
-                        <SelectItem value="partnership">Partnership Agreement</SelectItem>
-                        <SelectItem value="lease">Lease Agreement</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   <Button
                     className="w-full bg-blue-600 hover:bg-blue-700 mt-6"
                     onClick={handleAnalyze}
-                    disabled={!fileName || !industry || !contractType || analyzing}
+                    disabled={!fileName}
                   >
-                    {analyzing ? 'Analyzing Contract...' : 'Analyze Contract'}
+                    Analyze Contract
                   </Button>
                 </CardContent>
               </Card>
@@ -211,15 +150,15 @@ export function UploadContract({ onViewChange }: UploadContractProps) {
                 <CardContent className="p-6">
                   <h3 className="font-semibold text-sm mb-6">Analysis Steps</h3>
                   <div className="space-y-6">
-                    {steps.map((step, index) => (
+                    {steps.map((step) => (
                       <div key={step.number} className="flex items-start gap-4">
                         <div className="flex-shrink-0">
                           <div
                             className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step.status === 'complete'
-                                ? 'bg-green-100 text-green-700'
-                                : step.status === 'current'
-                                  ? 'bg-blue-100 text-blue-700 ring-4 ring-blue-50'
-                                  : 'bg-gray-100 text-gray-400'
+                              ? 'bg-green-100 text-green-700'
+                              : step.status === 'current'
+                                ? 'bg-blue-100 text-blue-700 ring-4 ring-blue-50'
+                                : 'bg-gray-100 text-gray-400'
                               }`}
                           >
                             {step.status === 'complete' ? (
