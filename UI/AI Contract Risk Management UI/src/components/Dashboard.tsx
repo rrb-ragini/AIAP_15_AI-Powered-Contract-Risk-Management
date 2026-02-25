@@ -10,17 +10,27 @@ interface DashboardProps {
   jobs?: Record<string, AnalysisJob>;
 }
 
-export function Dashboard({ onViewChange, jobs = {} }: DashboardProps) {
+export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
   // Compute metrics from actual jobs
-  const allJobs = Object.values(jobs).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  const completedJobs = allJobs.filter(j => j.status === 'completed' && j.results);
+  const allJobs = Object.values(jobs).sort((a, b) => {
+    const timeA = new Date(a.timestamp).getTime();
+    const timeB = new Date(b.timestamp).getTime();
+    return timeB - timeA;
+  });
+  const completedJobs = allJobs.filter(j => j.status === 'completed');
 
-  const contractsAnalyzed = completedJobs.length;
-  let highRiskContracts = 0;
-  let totalRiskyClauses = 0;
-  let totalScore = 0;
+  // Use stats from server if available, otherwise fallback to computed
+  const contractsAnalyzed = stats?.total_contracts ?? completedJobs.length;
+  // Note: The backend `high_risk_clauses_contracts` might count contracts with at least one high-risk clause.
+  // The frontend fallback here is a simplified version, assuming `risk_level` might be set on the job itself
+  // or needs to be re-derived from results if `stats` is not available.
+  // For now, let's keep the original logic for highRiskContracts if stats are not present,
+  // which iterates through completedJobs to find those with high risk clauses.
+  let highRiskContractsComputed = 0;
+  let totalRiskyClausesComputed = 0;
+  let riskDistComputed = { high: 0, medium: 0, low: 0 };
+  let totalScoreComputed = 0; // Used for avgRiskScore fallback
 
-  let riskDist = { high: 0, medium: 0, low: 0 };
   let bizImpact = { cashFlow: 0, legal: 0, ops: 0 };
 
   const getBusinessImpactType = (text: string) => {
@@ -35,14 +45,14 @@ export function Dashboard({ onViewChange, jobs = {} }: DashboardProps) {
     let hasHighRisk = false;
     let maxJobScore = 0;
 
-    const flags = job.results.filter((c: any) => c.risk_level && c.risk_level.toLowerCase() !== 'none');
-    totalRiskyClauses += flags.length;
+    const flags = job.results?.filter((c: any) => c.risk_level && c.risk_level.toLowerCase() !== 'none') || [];
+    totalRiskyClausesComputed += flags.length;
 
     flags.forEach((c: any) => {
       const level = c.risk_level.toLowerCase();
-      if (level === 'high') { hasHighRisk = true; riskDist.high++; }
-      else if (level === 'medium' || level === 'moderate') riskDist.medium++;
-      else riskDist.low++;
+      if (level === 'high') { hasHighRisk = true; riskDistComputed.high++; }
+      else if (level === 'medium' || level === 'moderate') riskDistComputed.medium++;
+      else riskDistComputed.low++;
 
       if (c.final_risk_score > maxJobScore) {
         maxJobScore = c.final_risk_score;
@@ -54,11 +64,25 @@ export function Dashboard({ onViewChange, jobs = {} }: DashboardProps) {
       if (impact === 'ops') bizImpact.ops++;
     });
 
-    if (hasHighRisk) highRiskContracts++;
-    totalScore += maxJobScore; // or average of clauses, but usually risk score is per contract max
+    if (hasHighRisk) highRiskContractsComputed++;
+    totalScoreComputed += maxJobScore; // or average of clauses, but usually risk score is per contract max
   });
 
-  const avgRiskScore = contractsAnalyzed > 0 ? Math.round(totalScore / contractsAnalyzed) : 0;
+  const highRiskContracts = stats?.high_risk_contracts ?? highRiskContractsComputed;
+  const totalRiskyClauses = stats?.total_risky_clauses ?? totalRiskyClausesComputed;
+  const avgRiskScore = stats?.avg_risk_score !== undefined ? stats.avg_risk_score.toFixed(1) : (contractsAnalyzed > 0 ? (totalScoreComputed / contractsAnalyzed).toFixed(1) : "0.0");
+
+  const riskDist = stats?.risk_distribution || { high: riskDistComputed.high, medium: riskDistComputed.medium, low: riskDistComputed.low };
+
+  const serverBizImpact = stats?.business_impact;
+  if (serverBizImpact) {
+    bizImpact = {
+      cashFlow: serverBizImpact.cash_flow ?? 0,
+      legal: serverBizImpact.legal ?? 0,
+      ops: serverBizImpact.ops ?? 0
+    };
+  }
+
 
   const getJobOverallRiskColor = (job: AnalysisJob) => {
     if (!job.results) return 'text-gray-600 bg-gray-50 border-gray-200';
@@ -154,9 +178,9 @@ export function Dashboard({ onViewChange, jobs = {} }: DashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="text-sm font-medium flex gap-2">
-                <span className="text-red-600">{riskDist.high} H</span>
-                <span className="text-orange-500">{riskDist.medium} M</span>
-                <span className="text-green-600">{riskDist.low} L</span>
+                <span className="text-red-600">{riskDist.high || 0} H</span>
+                <span className="text-orange-500">{riskDist.medium || 0} M</span>
+                <span className="text-green-600">{riskDist.low || 0} L</span>
               </div>
             </CardContent>
           </Card>
@@ -228,7 +252,7 @@ export function Dashboard({ onViewChange, jobs = {} }: DashboardProps) {
                         <td className="py-4 px-4">
                           {job.status === 'completed' ? (
                             <Badge className={`border ${getJobOverallRiskColor(job)}`}>
-                              {getJobOverallRiskLabel(job)}
+                              {(job as any).risk_level || getJobOverallRiskLabel(job)}
                             </Badge>
                           ) : <span className="text-muted-foreground text-sm">-</span>}
                         </td>

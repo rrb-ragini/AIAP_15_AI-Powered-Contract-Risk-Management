@@ -31,6 +31,7 @@ function findMatchingClause(word: string, clauses: any[]): any | null {
 
     for (const clause of clauses) {
         const clauseNorm = normalize(clause.clause_text || '');
+        // Check if the normalized word is a significant part of the normalized clause
         if (clauseNorm.includes(normWord)) {
             return clause;
         }

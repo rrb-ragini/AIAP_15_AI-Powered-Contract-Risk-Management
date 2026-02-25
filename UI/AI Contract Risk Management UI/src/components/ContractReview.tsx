@@ -1,13 +1,24 @@
 import { useState, useMemo } from 'react';
-import { AlertTriangle, CheckCircle, AlertCircle, Download, FileText, ChevronLeft, ChevronRight, TrendingUp, Flag, Lightbulb, ClipboardList, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, AlertCircle, Download, FileText, ChevronLeft, ChevronRight, TrendingUp, Flag, Lightbulb, ClipboardList, Loader2, Maximize2, X } from 'lucide-react';
+import { Toaster, toast } from 'sonner';
 import { generateAnnotatedPdf } from '../utils/generateAnnotatedPdf';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import jsPDF from 'jspdf';
+import * as Diff from 'diff';
+
+// Add custom scrollbar style
+const modalScrollbarStyle = `
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+`;
 
 // Setup PDF worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -23,6 +34,7 @@ export function ContractReview({ results, filename, contractText, file }: Contra
   const flags = results?.filter(c => c.risk_level && c.risk_level.toLowerCase() !== 'none') || [];
   const [selectedClause, setSelectedClause] = useState<any>(flags[0] || results?.[0] || {});
   const [activeTab, setActiveTab] = useState<'analysis' | 'suggestion'>('analysis');
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // PDF state
   const [numPages, setNumPages] = useState<number>();
@@ -30,6 +42,12 @@ export function ContractReview({ results, filename, contractText, file }: Contra
   const [pdfError, setPdfError] = useState(false);
   const [annotating, setAnnotating] = useState(false);
   const [annotError, setAnnotError] = useState<string | null>(null);
+
+  const handleClauseSelect = (clause: any) => {
+    setSelectedClause(clause);
+    setActiveTab('analysis');
+    toast.info(`Selected: ${clause.golden_clause_type || 'Clause'}`);
+  };
 
   const getRiskIcon = (level: string) => {
     const l = level?.toLowerCase();
@@ -61,27 +79,43 @@ export function ContractReview({ results, filename, contractText, file }: Contra
     return 'General Risk';
   };
 
-  // Substring matcher for highlighting
-  const textRenderer = useMemo(() => {
-    return ({ str }: any) => {
-      if (str.length < 4) return str;
+  // Highlight function for PDF text layer
+  const highlightTextLayer = () => {
+    const textLayer = document.querySelector('.react-pdf__Page__textContent');
+    if (!textLayer || !results) return;
 
-      const matchedClause = results?.find(c => {
-        const ct = c.clause_text || '';
-        return ct.length > 5 && (ct.includes(str) || str.includes(ct));
+    const spans = textLayer.querySelectorAll('span');
+    spans.forEach(span => {
+      const text = (span.textContent || '').trim();
+      if (text.length < 5) return;
+
+      // Normalize for more resilient matching
+      const normText = text.replace(/\s+/g, ' ').toLowerCase();
+
+      const matchedClause = results.find(c => {
+        const ct = (c.clause_text || '').replace(/\s+/g, ' ').toLowerCase();
+        return ct.length > 10 && (ct.includes(normText) || normText.includes(ct));
       });
 
       if (matchedClause) {
         const level = matchedClause.risk_level?.toLowerCase();
-        let color = 'rgba(74, 222, 128, 0.4)'; // green
-        if (level === 'high') color = 'rgba(248, 113, 113, 0.4)'; // red
-        if (level === 'medium' || level === 'moderate') color = 'rgba(251, 146, 60, 0.4)'; // orange
+        let color = 'rgba(74, 222, 128, 0.35)'; // green
+        if (level === 'high') color = 'rgba(248, 113, 113, 0.35)'; // red
+        if (level === 'medium' || level === 'moderate') color = 'rgba(251, 146, 60, 0.35)'; // orange
 
-        return `<mark style="background-color: ${color}; color: inherit; padding: 2px; border-radius: 2px; cursor: pointer;">${str}</mark>`;
+        span.style.backgroundColor = color;
+        span.style.borderRadius = '2px';
+        span.style.cursor = 'pointer';
+        span.title = `Risk: ${matchedClause.risk_level}`;
+
+        // Dynamic selection on click
+        span.onclick = (e) => {
+          e.stopPropagation();
+          handleClauseSelect(matchedClause);
+        };
       }
-      return str;
-    };
-  }, [results]);
+    });
+  };
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -226,7 +260,7 @@ export function ContractReview({ results, filename, contractText, file }: Contra
 
       // Suggested correction
       if (clause.suggested_correction) {
-        addText('✦ Suggested Correction:', { size: 9, bold: true, color: [21, 128, 61], indent: 8 });
+        addText('• Suggested Correction:', { size: 9, bold: true, color: [21, 128, 61], indent: 8 });
         addText(clause.suggested_correction, { size: 9, color: [21, 128, 61], indent: 16 });
       }
 
@@ -244,7 +278,7 @@ export function ContractReview({ results, filename, contractText, file }: Contra
       doc.text(`ContractGuard AI  |  Page ${i} of ${totalPages}  |  Confidential`, margin, doc.internal.pageSize.getHeight() - 20);
     }
 
-    doc.save(`Modified_${filename.replace(/\.[^.]+$/, '')}.pdf`);
+    doc.save(`risk_report_${filename.replace(/\.[^.]+$/, '')}.pdf`);
   };
 
   if (!results || results.length === 0) {
@@ -263,6 +297,7 @@ export function ContractReview({ results, filename, contractText, file }: Contra
 
   return (
     <div className="flex-1 overflow-hidden bg-gray-50 flex flex-col">
+      <style>{modalScrollbarStyle}</style>
       {/* Header */}
       <div className="bg-white border-b border-border px-8 py-6 flex justify-between items-center">
         <div>
@@ -350,13 +385,61 @@ export function ContractReview({ results, filename, contractText, file }: Contra
                   pageNumber={pageNumber}
                   width={600}
                   renderTextLayer={true}
-                  customTextRenderer={textRenderer}
+                  onRenderTextLayerSuccess={highlightTextLayer}
                   className="mx-auto"
                 />
               </Document>
             ) : (
-              <div className="bg-white p-8 w-full max-w-2xl shadow-lg border text-sm font-mono whitespace-pre-wrap leading-relaxed">
-                {contractText || "Loading document content..."}
+              <div
+                className="bg-white p-8 w-full max-w-2xl shadow-lg border text-sm font-mono whitespace-pre-wrap leading-relaxed prose-sm overflow-auto"
+                style={{ height: '700px' }}
+              >
+                {!file && results.length > 0 && (
+                  <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold mb-1">Source PDF Unavailable</p>
+                      <p>The original PDF for this report was not found on the server. Showing text mode fallback with AI highlights.</p>
+                    </div>
+                  </div>
+                )}
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: (() => {
+                      let text = contractText || "Loading document content...";
+                      // Sort results by length descending to match longest clauses first (prevents partial nesting issues)
+                      const sortedResults = [...(results || [])].sort((a, b) => (b.clause_text?.length || 0) - (a.clause_text?.length || 0));
+
+                      sortedResults.forEach(c => {
+                        if (!c.clause_text || c.risk_level?.toLowerCase() === 'none') return;
+
+                        const level = c.risk_level.toLowerCase();
+                        let color = 'rgba(74, 222, 128, 0.4)'; // green
+                        if (level === 'high') color = 'rgba(248, 113, 113, 0.4)'; // red
+                        if (level === 'medium' || level === 'moderate') color = 'rgba(251, 146, 60, 0.4)'; // orange
+
+                        const escaped = c.clause_text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+                        const regex = new RegExp(escaped, 'g');
+                        // Use cursor pointer, selection handled by container onClick
+                        text = text.replace(regex, (match) =>
+                          `<mark
+                            style="background-color: ${color}; color: inherit; padding: 2px; border-radius: 2px; cursor: pointer;"
+                          >${match}</mark>`
+                        );
+                      });
+                      return text;
+                    })()
+                  }}
+                  onClick={(e) => {
+                    // Handle clicks on mark tags in fallback view
+                    const target = e.target as HTMLElement;
+                    if (target.tagName === 'MARK') {
+                      const text = target.textContent || '';
+                      const matched = results.find(r => r.clause_text?.includes(text) || text.includes(r.clause_text || ''));
+                      if (matched) handleClauseSelect(matched);
+                    }
+                  }}
+                />
               </div>
             )}
           </div>
@@ -403,6 +486,19 @@ export function ContractReview({ results, filename, contractText, file }: Contra
                       <span className="ml-1 w-2 h-2 rounded-full bg-emerald-500 inline-block" />
                     )}
                   </button>
+                  {activeTab === 'suggestion' && selectedClause?.suggested_correction && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsExpanded(true);
+                      }}
+                      className="ml-auto h-8 px-2 text-gray-500 hover:text-blue-600"
+                      title="Expand side-by-side comparison"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
 
@@ -459,25 +555,70 @@ export function ContractReview({ results, filename, contractText, file }: Contra
                   <>
                     {/* Suggested Correction Tab */}
                     <div>
-                      <h4 className="text-sm font-semibold mb-2 text-gray-700">Original Clause</h4>
-                      <div className="bg-red-50 rounded-lg p-4 text-sm border border-red-100 italic text-gray-600 border-l-4 border-l-red-400">
-                        "{selectedClause?.clause_text || 'No text available'}"
+                      <h4 className="text-sm font-semibold mb-2 text-gray-700">Clause Comparison</h4>
+                      <p className="text-xs text-muted-foreground mb-4">
+                        Red <span className="bg-red-100 text-red-800 px-1 rounded">strikethrough</span> parts are from original,
+                        Green <span className="bg-emerald-100 text-emerald-800 px-1 rounded underline">underlined</span> parts are suggested additions.
+                      </p>
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-inner min-h-[150px]">
+                      <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {(() => {
+                          if (!selectedClause?.suggested_correction) {
+                            return <span className="text-gray-500 italic">No correction suggested.</span>;
+                          }
+
+                          const oldText = selectedClause.clause_text || '';
+                          const newText = selectedClause.suggested_correction;
+
+                          if (oldText === newText) {
+                            return <span>{newText}</span>;
+                          }
+
+                          // Use the imported diff library
+                          const changes = Diff.diffWords(oldText, newText);
+
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                              {/* Original Clause Block */}
+                              <div className="space-y-2">
+                                <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Original Clause</span>
+                                <div className="bg-red-50/30 p-4 rounded-lg border border-red-100/50 min-h-[120px] text-sm leading-relaxed text-gray-700">
+                                  {changes.map((part: any, i: number) => (
+                                    <span
+                                      key={i}
+                                      className={part.removed ? "bg-red-100 text-red-900 line-through decoration-red-500/50 mx-0.5" : ""}
+                                    >
+                                      {!part.added && part.value}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Suggested Clause Block */}
+                              <div className="space-y-2">
+                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">AI Suggested Correction</span>
+                                <div className="bg-emerald-50/30 p-4 rounded-lg border border-emerald-100/50 min-h-[120px] text-sm leading-relaxed text-gray-900 font-medium">
+                                  {changes.map((part: any, i: number) => (
+                                    <span
+                                      key={i}
+                                      className={part.added ? "bg-green-100 text-green-900 underline decoration-green-500 font-semibold mx-0.5 px-0.5" : ""}
+                                    >
+                                      {!part.removed && part.value}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 
-                    {selectedClause?.suggested_correction ? (
+                    {selectedClause?.suggested_correction && (
                       <>
-                        <div className="flex items-center gap-2 text-emerald-700">
-                          <Lightbulb className="w-4 h-4" />
-                          <span className="text-sm font-semibold">AI-Suggested Replacement</span>
-                        </div>
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 border-l-4 border-l-emerald-500">
-                          <p className="text-sm text-emerald-900 leading-relaxed font-medium whitespace-pre-wrap">
-                            {selectedClause.suggested_correction}
-                          </p>
-                        </div>
-
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-500 flex items-start gap-2">
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-500 flex items-start gap-2 mt-4">
                           <FileText className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                           <span>
                             This suggestion follows the <strong>minimal-departure rule</strong> — it corrects
@@ -489,20 +630,15 @@ export function ContractReview({ results, filename, contractText, file }: Contra
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full"
+                          className="w-full mt-4"
                           onClick={() => {
                             navigator.clipboard.writeText(selectedClause.suggested_correction);
+                            toast.success('Copied to clipboard');
                           }}
                         >
                           Copy Suggested Clause
                         </Button>
                       </>
-                    ) : (
-                      <div className="text-center py-10 border-2 border-dashed rounded-lg bg-gray-50/50">
-                        <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-3 opacity-50" />
-                        <p className="text-sm font-medium text-gray-900">No Correction Needed</p>
-                        <p className="text-xs text-muted-foreground mt-1">This clause appears well-drafted.</p>
-                      </div>
                     )}
                   </>
                 )}
@@ -558,6 +694,161 @@ export function ContractReview({ results, filename, contractText, file }: Contra
           </div>
         </div>
       </div>
+      {/* Manual Expanded Comparison Modal Overlay - Forced Top Layer */}
+      {isExpanded && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 md:p-12 animate-in fade-in duration-200"
+          style={{
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(4px)',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
+          }}
+        >
+          {/* Backdrop click to close */}
+          <div
+            className="absolute inset-0"
+            onClick={() => setIsExpanded(false)}
+          />
+
+          <div
+            className="relative bg-white flex flex-col rounded-2xl shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden border border-gray-200"
+            style={{
+              width: '95vw',
+              maxWidth: '95vw',
+              height: '85vh',
+              maxHeight: '85vh'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b flex flex-row items-center justify-between bg-white shrink-0 shadow-sm z-10">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <Maximize2 className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-gray-900 leading-none">Side-by-Side Comparison</h2>
+                    <Badge variant="outline" className={`ml-2 font-mono text-xs ${getRiskBadgeColor(selectedClause?.risk_level)}`}>
+                      {selectedClause?.risk_level?.toUpperCase()} RISK
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm font-medium text-gray-500">
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-gray-100 rounded text-gray-700">
+                      <span className="text-gray-400 font-bold uppercase text-[10px]">Clause ID:</span>
+                      <span>#{results.indexOf(selectedClause) + 1}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 rounded text-blue-700">
+                      <span className="text-blue-400 font-bold uppercase text-[10px]">Type:</span>
+                      <span>{selectedClause?.golden_clause_type || 'General'}</span>
+                    </div>
+                    {selectedClause?.final_risk_score !== undefined && (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 rounded text-amber-700 border border-amber-100">
+                        <span className="text-amber-400 font-bold uppercase text-[10px]">Score:</span>
+                        <span>{selectedClause.final_risk_score.toFixed(1)}/10</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsExpanded(false)}
+                className="rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-400 hover:text-gray-600" />
+              </Button>
+            </div>
+
+            {/* Content Area - Using absolute positioning within flex-1 for bulletproof scrolling */}
+            <div className="flex-1 min-h-0 bg-gray-50 relative border-b">
+              <div className="absolute inset-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-6 p-6 md:p-8">
+                {/* Original Column */}
+                <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-5 py-3 border-b bg-red-50/50 flex items-center justify-between shrink-0">
+                    <span className="text-xs font-bold text-red-700 uppercase tracking-widest flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      Original Clause
+                    </span>
+                    <Badge variant="outline" className="text-[10px] uppercase font-bold text-red-600 border-red-200 bg-white">Current</Badge>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-6 text-base md:text-lg leading-relaxed text-gray-800 font-serif custom-scrollbar scroll-smooth">
+                    {(() => {
+                      const oldText = selectedClause?.clause_text || '';
+                      const newText = selectedClause?.suggested_correction || '';
+                      const changes = Diff.diffWords(oldText, newText);
+                      return changes.map((part: any, i: number) => (
+                        <span
+                          key={i}
+                          className={part.removed ? "bg-red-100 text-red-900 line-through decoration-red-500/30 mx-0.5 px-0.5" : ""}
+                        >
+                          {!part.added && part.value}
+                        </span>
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                {/* Suggested Column */}
+                <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-5 py-3 border-b bg-emerald-50/50 flex items-center justify-between shrink-0">
+                    <span className="text-xs font-bold text-emerald-700 uppercase tracking-widest flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      AI Suggested Correction
+                    </span>
+                    <Badge variant="outline" className="text-[10px] uppercase font-bold text-emerald-600 border-emerald-200 bg-white">Improved</Badge>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-6 text-base md:text-lg leading-relaxed text-gray-900 font-medium font-serif custom-scrollbar scroll-smooth">
+                    {(() => {
+                      const oldText = selectedClause?.clause_text || '';
+                      const newText = selectedClause?.suggested_correction || '';
+                      const changes = Diff.diffWords(oldText, newText);
+                      return changes.map((part: any, i: number) => (
+                        <span
+                          key={i}
+                          className={part.added ? "bg-green-100 text-green-900 underline decoration-green-500/50 mx-0.5 px-0.5 font-semibold" : ""}
+                        >
+                          {!part.removed && part.value}
+                        </span>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 bg-white border-t flex items-center justify-between shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+              <div className="text-xs text-gray-500 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+                <span>Comparing original text with AI corrections. Differences are highlighted.</span>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setIsExpanded(false)} className="hover:bg-gray-50">
+                  Close Detailed Review
+                </Button>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-95"
+                  onClick={() => {
+                    if (selectedClause?.suggested_correction) {
+                      navigator.clipboard.writeText(selectedClause.suggested_correction);
+                      toast.success('Copied correction to clipboard');
+                    }
+                  }}
+                >
+                  Copy Suggested Clause
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -19,7 +19,7 @@ export interface AnalysisJob {
   status: 'analyzing' | 'completed' | 'error';
   results?: any[];
   contractText?: string;
-  timestamp: Date;
+  timestamp: string | Date;
 }
 
 interface AppState {
@@ -45,17 +45,112 @@ export default function App() {
     }
   };
 
+  const fetchReports = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/reports');
+      const data = await response.json();
+      const reportsMap: Record<string, AnalysisJob> = {};
+      data.forEach((report: any) => {
+        reportsMap[report.id] = {
+          ...report,
+          status: 'completed'
+        };
+      });
+
+      setJobs(prev => {
+        const newJobs = { ...prev, ...reportsMap };
+        // Clean up any local "analyzing" jobs that are actually finished on server
+        Object.entries(newJobs).forEach(([id, job]) => {
+          if (job.status === 'analyzing') {
+            const isCompleted = data.some((r: any) => r.filename === job.filename);
+            if (isCompleted) {
+              delete newJobs[id];
+            }
+          }
+        });
+        return newJobs;
+      });
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
+    fetchReports();
+
+    // Recover analyzing jobs from localStorage
+    const savedJobs = localStorage.getItem('analyzing_jobs');
+    if (savedJobs) {
+      try {
+        const parsed = JSON.parse(savedJobs);
+        setJobs(prev => ({ ...prev, ...parsed }));
+      } catch (e) {
+        console.error('Error recovering jobs:', e);
+      }
+    }
   }, []);
 
-  const handleViewChange = (view: string, data?: any) => {
-    if (view === 'review' && data?.results) {
-      // Existing direct review logic (if still used)
-      setAppState({
+  useEffect(() => {
+    // Save only 'analyzing' jobs to localStorage
+    const analyzingJobs: Record<string, AnalysisJob> = {};
+    Object.entries(jobs).forEach(([id, job]) => {
+      if (job.status === 'analyzing') {
+        analyzingJobs[id] = job;
+      }
+    });
+    localStorage.setItem('analyzing_jobs', JSON.stringify(analyzingJobs));
+  }, [jobs]);
+
+  const handleViewChange = async (view: string, data?: any) => {
+    if (view === 'review' && data) {
+      const jobId = typeof data === 'string' ? data : data.id || data.filename;
+
+      // If report is missing or incomplete, fetch full data
+      if (!jobs[jobId] || !jobs[jobId].results || !jobs[jobId].file) {
+        try {
+          const res = await fetch(`http://localhost:8000/reports/${jobId}`);
+          if (!res.ok) throw new Error('Report not found');
+          const fullReport = await res.json();
+
+          let fileObj = jobs[jobId]?.file;
+          if (!fileObj) {
+            try {
+              const fileRes = await fetch(`http://localhost:8000/reports/${jobId}/file`);
+              if (fileRes.ok) {
+                const blob = await fileRes.blob();
+                fileObj = new File([blob], fullReport.filename, { type: 'application/pdf' });
+              }
+            } catch (e) {
+              console.error('Error fetching file:', e);
+            }
+          }
+
+          setJobs(prev => ({
+            ...prev,
+            [jobId]: {
+              ...prev[jobId],
+              id: jobId,
+              filename: fullReport.filename,
+              results: fullReport.results,
+              contractText: fullReport.contract_text,
+              file: fileObj,
+              status: 'completed',
+              timestamp: fullReport.timestamp
+            }
+          }));
+        } catch (error) {
+          console.error('Error fetching full report:', error);
+          toast.error('Failed to load report details');
+          return;
+        }
+      }
+
+      setAppState(prev => ({
+        ...prev,
         view: 'review',
-        selectedContractId: data.filename
-      });
+        selectedContractId: jobId
+      }));
       fetchStats();
     } else if (view === 'start-analysis' && data) {
       const jobId = Date.now().toString();
@@ -64,12 +159,12 @@ export default function App() {
         filename: data.filename,
         file: data.file,
         status: 'analyzing',
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       };
       setJobs(prev => ({ ...prev, [jobId]: newJob }));
 
       // Navigate to dashboard while it's running in background
-      setAppState({ view: 'dashboard' });
+      setAppState(prev => ({ ...prev, view: 'dashboard' }));
 
       toast.info(`Analysis started for ${data.filename}`, {
         description: 'This may take up to 10 minutes. You can continue using the app.'
@@ -88,21 +183,28 @@ export default function App() {
           return res.json();
         })
         .then(analysisData => {
-          // Play success sound
-          const audio = new Audio('/success.mp3'); // Need to map this to an actual sound or just rely on toast
-          audio.play().catch(e => console.log('Audio play blocked:', e));
-
           toast.success(`Analysis completed for ${data.filename}`);
 
           setJobs(prev => ({
             ...prev,
-            [jobId]: {
-              ...prev[jobId],
+            [analysisData.id]: {
+              id: analysisData.id,
+              filename: analysisData.filename,
               status: 'completed',
               results: analysisData.results,
-              contractText: analysisData.contract_text
+              contractText: analysisData.contract_text,
+              file: prev[jobId]?.file, // Preserve the file object
+              timestamp: new Date().toISOString()
             }
           }));
+          // Remove temporary job if id changed
+          if (analysisData.id !== jobId) {
+            setJobs(prev => {
+              const newJobs = { ...prev };
+              delete newJobs[jobId];
+              return newJobs;
+            });
+          }
           fetchStats();
         })
         .catch(error => {
@@ -114,11 +216,43 @@ export default function App() {
           }));
         });
 
+    } else if (view === 'delete-report' && data) {
+      try {
+        const res = await fetch(`http://localhost:8000/reports/${data}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          setJobs(prev => {
+            const newJobs = { ...prev };
+            delete newJobs[data];
+            return newJobs;
+          });
+          toast.success('Report deleted');
+          fetchStats();
+        }
+      } catch (error) {
+        toast.error('Failed to delete report');
+      }
+    } else if (view === 'clear-all' && data) {
+      try {
+        const res = await fetch(`http://localhost:8000/reports`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          setJobs({});
+          toast.success('All reports cleared');
+          fetchStats();
+        }
+      } catch (error) {
+        toast.error('Failed to clear reports');
+      }
     } else {
-      setAppState({
+      if (view === 'dashboard') fetchStats();
+      setAppState(prev => ({
+        ...prev,
         view: view as View,
         selectedContractId: typeof data === 'string' ? data : undefined
-      });
+      }));
     }
   };
 
@@ -129,8 +263,7 @@ export default function App() {
       case 'upload':
         return <UploadContract onViewChange={handleViewChange} />;
       case 'review':
-        // Find the job if selectedContractId is a jobId or filename
-        const selectedJob = Object.values(jobs).find((j: AnalysisJob) => j.id === appState.selectedContractId || j.filename === appState.selectedContractId) as AnalysisJob | undefined;
+        const selectedJob = jobs[appState.selectedContractId || ''];
         return <ContractReview
           results={selectedJob?.results || []}
           filename={selectedJob?.filename || ''}
