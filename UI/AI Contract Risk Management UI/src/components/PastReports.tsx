@@ -1,18 +1,34 @@
-import { FileText, Download, TrendingUp, AlertTriangle, History } from 'lucide-react';
+import { FileText, Download, TrendingUp, AlertTriangle, History, Trash2, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { toast } from 'sonner';
 import { AnalysisJob } from '../App';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "./ui/alert-dialog";
 
 interface PastReportsProps {
-    onViewChange: (view: string, contractId?: string) => void;
+    onViewChange: (view: string, data?: any) => void;
     jobs?: Record<string, AnalysisJob>;
 }
 
 export function PastReports({ onViewChange, jobs = {} }: PastReportsProps) {
     const allJobs = Object.values(jobs)
-        .filter(j => j.status === 'completed' && j.results)
-        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        .filter(j => j.status === 'completed')
+        .sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            return timeB - timeA;
+        });
 
     const getJobOverallRiskColor = (job: AnalysisJob) => {
         if (!job.results) return 'text-gray-600 bg-gray-50 border-gray-200';
@@ -32,8 +48,7 @@ export function PastReports({ onViewChange, jobs = {} }: PastReportsProps) {
         return 'Low';
     };
 
-    const handleDownload = (job: AnalysisJob) => {
-        // Implement dummy PDF download if we have a file or content
+    const handleDownload = async (job: AnalysisJob) => {
         if (job.file) {
             const url = URL.createObjectURL(job.file);
             const a = document.createElement('a');
@@ -44,14 +59,30 @@ export function PastReports({ onViewChange, jobs = {} }: PastReportsProps) {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         } else {
-            // Create a basic text file from results if no original file is present
-            const element = document.createElement("a");
-            const file = new Blob([JSON.stringify(job.results, null, 2)], { type: 'text/plain' });
-            element.href = URL.createObjectURL(file);
-            element.download = `Risk_Report_${job.filename}.json`;
-            document.body.appendChild(element);
-            element.click();
-            document.body.removeChild(element);
+            // Fetch from backend
+            try {
+                toast.loading('Fetching file from server...');
+                const res = await fetch(`http://localhost:8000/reports/${job.id}/file`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Analyzed_${job.filename}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    toast.dismiss();
+                    toast.success('Download started');
+                } else {
+                    throw new Error('File not found on server');
+                }
+            } catch (error) {
+                console.error('Error downloading file:', error);
+                toast.dismiss();
+                toast.error('Failed to download file from server');
+            }
         }
     };
 
@@ -64,9 +95,35 @@ export function PastReports({ onViewChange, jobs = {} }: PastReportsProps) {
                         Access and download your previously analyzed contracts.
                     </p>
                 </div>
-                <Button onClick={() => onViewChange('upload')} className="bg-blue-600 hover:bg-blue-700">
-                    Upload New Contract
-                </Button>
+                <div className="flex gap-4">
+                    {allJobs.length > 0 && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Clear History
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Clear All Analysis History?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete all previously analyzed contract reports and reset your dashboard statistics.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => onViewChange('clear-all', 'all')} className="bg-red-600 hover:bg-red-700">
+                                        Delete All
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                    <Button onClick={() => onViewChange('upload')} className="bg-blue-600 hover:bg-blue-700">
+                        Upload New Contract
+                    </Button>
+                </div>
             </div>
 
             <Card className="flex-1 flex flex-col min-h-0 shadow-sm border-gray-200">
@@ -84,7 +141,9 @@ export function PastReports({ onViewChange, jobs = {} }: PastReportsProps) {
                             </thead>
                             <tbody>
                                 {allJobs.map((job) => {
-                                    const riskyCount = job.results ? job.results.filter((c: any) => c.risk_level && c.risk_level.toLowerCase() !== 'none').length : 0;
+                                    const riskyCount = job.results
+                                        ? job.results.filter((c: any) => c.risk_level && c.risk_level.toLowerCase() !== 'none').length
+                                        : (job as any).flagged_count || 0;
                                     return (
                                         <tr key={job.id} className="border-b border-border last:border-0 hover:bg-gray-50/80 transition-colors">
                                             <td className="py-4 px-6">
@@ -105,7 +164,7 @@ export function PastReports({ onViewChange, jobs = {} }: PastReportsProps) {
                                             </td>
                                             <td className="py-4 px-6">
                                                 <Badge className={`border ${getJobOverallRiskColor(job)} shadow-sm`}>
-                                                    {getJobOverallRiskLabel(job)} Risk
+                                                    {(job as any).risk_level || getJobOverallRiskLabel(job)} Risk
                                                 </Badge>
                                             </td>
                                             <td className="py-4 px-6">
@@ -130,6 +189,19 @@ export function PastReports({ onViewChange, jobs = {} }: PastReportsProps) {
                                                     title="Download Document"
                                                 >
                                                     <Download className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        if (confirm('Are you sure you want to delete this report?')) {
+                                                            onViewChange('delete-report', job.id);
+                                                        }
+                                                    }}
+                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    title="Delete Report"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </td>
                                         </tr>
