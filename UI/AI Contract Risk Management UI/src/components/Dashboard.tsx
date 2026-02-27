@@ -1,16 +1,42 @@
-import { FileText, AlertTriangle, TrendingUp, Flag, PieChart, Briefcase } from 'lucide-react';
+import { FileText, AlertTriangle, TrendingUp, Flag, Briefcase } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { AnalysisJob } from '../App';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts';
+
+interface DashboardStats {
+  total_contracts?: number;
+  high_risk_contracts?: number;
+  total_risky_clauses?: number;
+  avg_risk_score?: number;
+  risk_distribution?: { high: number; medium: number; low: number };
+  business_impact?: { cash_flow: number; legal: number; ops: number };
+}
 
 interface DashboardProps {
   onViewChange: (view: string, contractId?: string) => void;
-  stats?: any;
+  stats?: DashboardStats;
   jobs?: Record<string, AnalysisJob>;
+  autoFlag?: boolean;
 }
 
-export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
+const RISK_COLORS = {
+  High: '#ef4444',
+  Medium: '#f97316',
+  Low: '#22c55e',
+};
+
+export function Dashboard({ onViewChange, stats, jobs = {}, autoFlag = true }: DashboardProps) {
   // Compute metrics from actual jobs
   const allJobs = Object.values(jobs).sort((a, b) => {
     const timeA = new Date(a.timestamp).getTime();
@@ -21,16 +47,11 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
 
   // Use stats from server if available, otherwise fallback to computed
   const contractsAnalyzed = stats?.total_contracts ?? completedJobs.length;
-  // Note: The backend `high_risk_clauses_contracts` might count contracts with at least one high-risk clause.
-  // The frontend fallback here is a simplified version, assuming `risk_level` might be set on the job itself
-  // or needs to be re-derived from results if `stats` is not available.
-  // For now, let's keep the original logic for highRiskContracts if stats are not present,
-  // which iterates through completedJobs to find those with high risk clauses.
+
   let highRiskContractsComputed = 0;
   let totalRiskyClausesComputed = 0;
   let riskDistComputed = { high: 0, medium: 0, low: 0 };
-  let totalScoreComputed = 0; // Used for avgRiskScore fallback
-
+  let totalScoreComputed = 0;
   let bizImpact = { cashFlow: 0, legal: 0, ops: 0 };
 
   const getBusinessImpactType = (text: string) => {
@@ -54,9 +75,7 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
       else if (level === 'medium' || level === 'moderate') riskDistComputed.medium++;
       else riskDistComputed.low++;
 
-      if (c.final_risk_score > maxJobScore) {
-        maxJobScore = c.final_risk_score;
-      }
+      if (c.final_risk_score > maxJobScore) maxJobScore = c.final_risk_score;
 
       const impact = getBusinessImpactType(c.clause_text || '');
       if (impact === 'cashFlow') bizImpact.cashFlow++;
@@ -65,24 +84,32 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
     });
 
     if (hasHighRisk) highRiskContractsComputed++;
-    totalScoreComputed += maxJobScore; // or average of clauses, but usually risk score is per contract max
+    totalScoreComputed += maxJobScore;
   });
 
   const highRiskContracts = stats?.high_risk_contracts ?? highRiskContractsComputed;
   const totalRiskyClauses = stats?.total_risky_clauses ?? totalRiskyClausesComputed;
-  const avgRiskScore = stats?.avg_risk_score !== undefined ? stats.avg_risk_score.toFixed(1) : (contractsAnalyzed > 0 ? (totalScoreComputed / contractsAnalyzed).toFixed(1) : "0.0");
+  const avgRiskScore = stats?.avg_risk_score !== undefined
+    ? stats.avg_risk_score.toFixed(1)
+    : (contractsAnalyzed > 0 ? (totalScoreComputed / contractsAnalyzed).toFixed(1) : '0.0');
 
-  const riskDist = stats?.risk_distribution || { high: riskDistComputed.high, medium: riskDistComputed.medium, low: riskDistComputed.low };
+  const riskDist = stats?.risk_distribution || riskDistComputed;
 
   const serverBizImpact = stats?.business_impact;
   if (serverBizImpact) {
     bizImpact = {
       cashFlow: serverBizImpact.cash_flow ?? 0,
       legal: serverBizImpact.legal ?? 0,
-      ops: serverBizImpact.ops ?? 0
+      ops: serverBizImpact.ops ?? 0,
     };
   }
 
+  // Data for the Risk Distribution bar chart
+  const riskChartData = [
+    { name: 'High', value: riskDist.high || 0, color: RISK_COLORS.High },
+    { name: 'Medium', value: riskDist.medium || 0, color: RISK_COLORS.Medium },
+    { name: 'Low', value: riskDist.low || 0, color: RISK_COLORS.Low },
+  ];
 
   const getJobOverallRiskColor = (job: AnalysisJob) => {
     if (!job.results) return 'text-gray-600 bg-gray-50 border-gray-200';
@@ -102,6 +129,8 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
     return 'Low';
   };
 
+  const showHighRiskWarning = autoFlag && highRiskContracts > 0;
+
   return (
     <div className="flex-1 overflow-auto bg-gray-50 flex flex-col">
       {/* Header */}
@@ -118,10 +147,22 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
       </div>
 
       <div className="p-8 space-y-6 overflow-auto">
+
+        {/* Auto-flag banner */}
+        {showHighRiskWarning && (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg px-5 py-3 text-red-700 text-sm font-medium">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>
+              Auto-flag is on: <strong>{highRiskContracts}</strong> contract{highRiskContracts > 1 ? 's' : ''} with high-risk clause{highRiskContracts > 1 ? 's' : ''} detected. Review them below.
+            </span>
+          </div>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
 
-          <Card className="shadow-sm">
+          {/* Contracts Analyzed */}
+          <Card className="shadow-sm xl:col-span-1">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xs font-medium text-muted-foreground">Contracts Analyzed</CardTitle>
@@ -133,19 +174,23 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          {/* High Risk Contracts */}
+          <Card className={`shadow-sm xl:col-span-1 ${showHighRiskWarning ? 'border-red-300 bg-red-50/50' : ''}`}>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xs font-medium text-muted-foreground">High Risk Contracts</CardTitle>
-                <AlertTriangle className="w-4 h-4 text-red-600" />
+                <AlertTriangle className={`w-4 h-4 ${showHighRiskWarning ? 'text-red-600 animate-pulse' : 'text-red-400'}`} />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{highRiskContracts}</div>
+              <div className={`text-2xl font-bold ${showHighRiskWarning ? 'text-red-600' : ''}`}>
+                {highRiskContracts}
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          {/* Risky Clauses */}
+          <Card className="shadow-sm xl:col-span-1">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xs font-medium text-muted-foreground">Risky Clauses</CardTitle>
@@ -157,7 +202,8 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          {/* Avg Risk Score */}
+          <Card className="shadow-sm xl:col-span-1">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xs font-medium text-muted-foreground">Avg Risk Score</CardTitle>
@@ -169,23 +215,55 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Risk Distribution</CardTitle>
-                <PieChart className="w-4 h-4 text-purple-600" />
-              </div>
+          {/* Risk Distribution — Bar Chart (2 cols wide) */}
+          <Card className="shadow-sm xl:col-span-2">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Risk Distribution</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-sm font-medium flex gap-2">
-                <span className="text-red-600">{riskDist.high || 0} H</span>
-                <span className="text-orange-500">{riskDist.medium || 0} M</span>
-                <span className="text-green-600">{riskDist.low || 0} L</span>
-              </div>
+            <CardContent className="pt-0">
+              {riskChartData.every(d => d.value === 0) ? (
+                <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">
+                  No data yet
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={72}>
+                  <BarChart
+                    data={riskChartData}
+                    layout="vertical"
+                    margin={{ top: 2, right: 32, left: 0, bottom: 2 }}
+                    barSize={14}
+                  >
+                    <XAxis type="number" hide />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={46}
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+                      formatter={(value: number) => [value, 'Clauses']}
+                    />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                      {riskChartData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} />
+                      ))}
+                      <LabelList
+                        dataKey="value"
+                        position="right"
+                        style={{ fontSize: 11, fontWeight: 600, fill: '#374151' }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm bg-blue-50 border-blue-100">
+          {/* Business Impact */}
+          <Card className="shadow-sm bg-blue-50 border-blue-100 xl:col-span-1">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xs font-bold text-blue-900">Business Impact</CardTitle>
@@ -203,7 +281,7 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
 
         </div>
 
-        {/* Recent Contracts Table */}
+        {/* Analysis History Table */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Analysis History</CardTitle>
@@ -229,7 +307,9 @@ export function Dashboard({ onViewChange, stats, jobs = {} }: DashboardProps) {
                             <div className="w-8 h-8 bg-blue-50 rounded flex items-center justify-center shrink-0">
                               <FileText className="w-4 h-4 text-blue-600" />
                             </div>
-                            <span className="text-sm font-medium truncate max-w-[200px]" title={job.filename}>{job.filename}</span>
+                            <span className="text-sm font-medium truncate max-w-[200px]" title={job.filename}>
+                              {job.filename}
+                            </span>
                           </div>
                         </td>
                         <td className="py-4 px-4 text-sm text-muted-foreground">

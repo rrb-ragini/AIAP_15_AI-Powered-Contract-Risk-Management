@@ -1,15 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>AI Contract Risk Management UI</title>
-    </head>
+    <!-- ─── Branding: update PAGE_TITLE and META_DESCRIPTION in src/config/brand.ts ─── -->
+    <title>ContractGuard AI — Risk Management</title>
+    <meta name="description" content="AI-powered contract risk analysis using a multi-model LLM council. Identify high-risk clauses, get suggested corrections, and protect your business." />
 
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-    </body>
-  </html>
-  
+    <!-- Favicon: replace /favicon.svg with your own logo file in the public/ folder -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
+
+    <!-- ─── Font: change 'Inter' to any Google Font. Must match FONT_FAMILY in brand.ts ─── -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- ─── Brand CSS variables — keeps CSS in sync with brand.ts colors ─── -->
+    <style>
+      :root {
+        --brand-primary: #2563eb;
+        --brand-primary-hover: #1d4ed8;
+        --brand-sidebar: #1e293b;
+        --brand-sidebar-text: #94a3b8;
+        --brand-sidebar-active: #2563eb;
+        --brand-font: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      }
+
+      /* Apply brand font globally */
+      html, body {
+        font-family: var(--brand-font);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
