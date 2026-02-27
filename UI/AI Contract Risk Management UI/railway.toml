@@ -3,4 +3,6 @@ builder = "nixpacks"
 buildCommand = "npm install && npm run build"
 
 [deploy]
-staticDir = "build"
+startCommand = "npx serve build -l $PORT"
+healthcheckPath = "/"
+restartPolicyType = "on_failure"
