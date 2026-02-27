@@ -1,45 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- ─── Branding: update PAGE_TITLE and META_DESCRIPTION in src/config/brand.ts ─── -->
-    <title>ContractGuard AI — Risk Management</title>
-    <meta name="description" content="AI-powered contract risk analysis using a multi-model LLM council. Identify high-risk clauses, get suggested corrections, and protect your business." />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Favicon: replace /favicon.svg with your own logo file in the public/ folder -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate icon" href="/favicon.ico" />
+  <!-- Title + SEO: also update APP_NAME / PAGE_TITLE in src/config/brand.ts -->
+  <title>Legal Scanner — Contract Risk Management</title>
+  <meta name="description"
+    content="AI-powered contract risk analysis. Identify high-risk clauses, get suggested corrections, and protect your business." />
 
-    <!-- ─── Font: change 'Inter' to any Google Font. Must match FONT_FAMILY in brand.ts ─── -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+  <!-- Favicon: drop your logo file in public/ as favicon.svg or favicon.ico -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
 
-    <!-- ─── Brand CSS variables — keeps CSS in sync with brand.ts colors ─── -->
-    <style>
-      :root {
-        --brand-primary: #2563eb;
-        --brand-primary-hover: #1d4ed8;
-        --brand-sidebar: #1e293b;
-        --brand-sidebar-text: #94a3b8;
-        --brand-sidebar-active: #2563eb;
-        --brand-font: 'Inter', ui-sans-serif, system-ui, sans-serif;
-      }
+  <!-- Font: swap 'Inter' for any Google Font name here -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-      /* Apply brand font globally */
-      html, body {
-        font-family: var(--brand-font);
-      }
-    </style>
-  </head>
+  <style>
+    html,
+    body {
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    }
+  </style>
+</head>
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>
