@@ -4,11 +4,11 @@ import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { UploadContract } from './components/UploadContract';
 import { ContractReview } from './components/ContractReview';
-import { RiskReport } from './components/RiskReport';
 import { GoldenClauseLibrary } from './components/GoldenClauseLibrary';
 import { Settings } from './components/Settings';
 import { LandingPage } from './components/LandingPage';
 import { PastReports } from './components/PastReports';
+import { API_BASE_URL } from './utils/api';
 
 type View = 'landing' | 'dashboard' | 'upload' | 'library' | 'reports' | 'clauses' | 'settings' | 'review';
 
@@ -20,6 +20,36 @@ export interface AnalysisJob {
   results?: any[];
   contractText?: string;
   timestamp: string | Date;
+}
+
+export interface AppSettings {
+  riskLevel: 'low' | 'medium' | 'strict';
+  autoFlag: boolean;
+  sendAlerts: boolean;
+  industry: string;
+  contractType: string;
+  useCustomLibrary: boolean;
+  allowSuggestions: boolean;
+}
+
+const DEFAULT_SETTINGS: AppSettings = {
+  riskLevel: 'medium',
+  autoFlag: true,
+  sendAlerts: true,
+  industry: 'technology',
+  contractType: 'service',
+  useCustomLibrary: false,
+  allowSuggestions: true,
+};
+
+function loadSettings(): AppSettings {
+  try {
+    const saved = localStorage.getItem('app_settings');
+    if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+  } catch (e) {
+    console.error('Error loading settings:', e);
+  }
+  return DEFAULT_SETTINGS;
 }
 
 interface AppState {
@@ -34,10 +64,11 @@ export default function App() {
   });
 
   const [jobs, setJobs] = useState<Record<string, AnalysisJob>>({});
+  const [settings, setSettings] = useState<AppSettings>(loadSettings);
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:8000/dashboard-stats');
+      const response = await fetch(`${API_BASE_URL}/dashboard-stats`);
       const data = await response.json();
       setAppState(prev => ({ ...prev, dashboardStats: data }));
     } catch (error) {
@@ -47,7 +78,7 @@ export default function App() {
 
   const fetchReports = async () => {
     try {
-      const response = await fetch('http://localhost:8000/reports');
+      const response = await fetch(`${API_BASE_URL}/reports`);
       const data = await response.json();
       const reportsMap: Record<string, AnalysisJob> = {};
       data.forEach((report: any) => {
@@ -102,6 +133,11 @@ export default function App() {
     localStorage.setItem('analyzing_jobs', JSON.stringify(analyzingJobs));
   }, [jobs]);
 
+  const handleSaveSettings = (newSettings: AppSettings) => {
+    setSettings(newSettings);
+    localStorage.setItem('app_settings', JSON.stringify(newSettings));
+  };
+
   const handleViewChange = async (view: string, data?: any) => {
     if (view === 'review' && data) {
       const jobId = typeof data === 'string' ? data : data.id || data.filename;
@@ -109,14 +145,14 @@ export default function App() {
       // If report is missing or incomplete, fetch full data
       if (!jobs[jobId] || !jobs[jobId].results || !jobs[jobId].file) {
         try {
-          const res = await fetch(`http://localhost:8000/reports/${jobId}`);
+          const res = await fetch(`${API_BASE_URL}/reports/${jobId}`);
           if (!res.ok) throw new Error('Report not found');
           const fullReport = await res.json();
 
           let fileObj = jobs[jobId]?.file;
           if (!fileObj) {
             try {
-              const fileRes = await fetch(`http://localhost:8000/reports/${jobId}/file`);
+              const fileRes = await fetch(`${API_BASE_URL}/reports/${jobId}/file`);
               if (fileRes.ok) {
                 const blob = await fileRes.blob();
                 fileObj = new File([blob], fullReport.filename, { type: 'application/pdf' });
@@ -163,18 +199,18 @@ export default function App() {
       };
       setJobs(prev => ({ ...prev, [jobId]: newJob }));
 
-      // Navigate to dashboard while it's running in background
+      // Navigate to dashboard while it's running in the background
       setAppState(prev => ({ ...prev, view: 'dashboard' }));
 
       toast.info(`Analysis started for ${data.filename}`, {
         description: 'This may take up to 10 minutes. You can continue using the app.'
       });
 
-      // Kick off analysis
+      // Kick off analysis — include risk sensitivity from settings
       const formData = new FormData();
       formData.append('file', data.file);
 
-      fetch('http://localhost:8000/analyze', {
+      fetch(`${API_BASE_URL}/analyze?sensitivity=${settings.riskLevel}`, {
         method: 'POST',
         body: formData,
       })
@@ -193,7 +229,7 @@ export default function App() {
               status: 'completed',
               results: analysisData.results,
               contractText: analysisData.contract_text,
-              file: prev[jobId]?.file, // Preserve the file object
+              file: prev[jobId]?.file,
               timestamp: new Date().toISOString()
             }
           }));
@@ -218,7 +254,7 @@ export default function App() {
 
     } else if (view === 'delete-report' && data) {
       try {
-        const res = await fetch(`http://localhost:8000/reports/${data}`, {
+        const res = await fetch(`${API_BASE_URL}/reports/${data}`, {
           method: 'DELETE'
         });
         if (res.ok) {
@@ -235,7 +271,7 @@ export default function App() {
       }
     } else if (view === 'clear-all' && data) {
       try {
-        const res = await fetch(`http://localhost:8000/reports`, {
+        const res = await fetch(`${API_BASE_URL}/reports`, {
           method: 'DELETE'
         });
         if (res.ok) {
@@ -259,25 +295,34 @@ export default function App() {
   const renderView = () => {
     switch (appState.view) {
       case 'dashboard':
-        return <Dashboard onViewChange={handleViewChange} stats={appState.dashboardStats} jobs={jobs} />;
+        return (
+          <Dashboard
+            onViewChange={handleViewChange}
+            stats={appState.dashboardStats}
+            jobs={jobs}
+            autoFlag={settings.autoFlag}
+          />
+        );
       case 'upload':
         return <UploadContract onViewChange={handleViewChange} />;
       case 'review':
         const selectedJob = jobs[appState.selectedContractId || ''];
-        return <ContractReview
-          results={selectedJob?.results || []}
-          filename={selectedJob?.filename || ''}
-          contractText={selectedJob?.contractText}
-          file={selectedJob?.file}
-        />;
+        return (
+          <ContractReview
+            results={selectedJob?.results || []}
+            filename={selectedJob?.filename || ''}
+            contractText={selectedJob?.contractText}
+            file={selectedJob?.file}
+          />
+        );
       case 'reports':
         return <PastReports onViewChange={handleViewChange} jobs={jobs} />;
       case 'library':
         return <GoldenClauseLibrary />;
       case 'settings':
-        return <Settings />;
+        return <Settings settings={settings} onSave={handleSaveSettings} />;
       default:
-        return <Dashboard onViewChange={handleViewChange} stats={appState.dashboardStats} />;
+        return <Dashboard onViewChange={handleViewChange} stats={appState.dashboardStats} autoFlag={settings.autoFlag} />;
     }
   };
 

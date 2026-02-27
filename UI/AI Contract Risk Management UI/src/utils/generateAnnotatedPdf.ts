@@ -1,5 +1,6 @@
 import { PDFDocument, PDFName, PDFArray, PDFNumber, PDFString } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
+import { BRAND } from '../config/brand';
 
 // Ensure the pdfjs worker is configured in this module's context too
 if (!pdfjs.GlobalWorkerOptions.workerSrc) {
@@ -138,7 +139,7 @@ export async function generateAnnotatedPdf(file: File, results: any[]): Promise<
                 C: [r, g, b],
                 CA: PDFNumber.of(0.5),
                 F: PDFNumber.of(4), // Print flag
-                T: PDFString.of('ContractGuard AI'),
+                T: PDFString.of(BRAND.APP_NAME),
                 Contents: PDFString.of(contents),
             });
 

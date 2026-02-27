@@ -1,11 +1,35 @@
+import { useState } from 'react';
 import { Shield, FileText, Users, Database } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { toast } from 'sonner';
+import { AppSettings } from '../App';
 
-export function Settings() {
+interface SettingsProps {
+  settings: AppSettings;
+  onSave: (settings: AppSettings) => void;
+}
+
+export function Settings({ settings, onSave }: SettingsProps) {
+  // Local draft state — only committed on Save
+  const [draft, setDraft] = useState<AppSettings>({ ...settings });
+
+  const handleSave = () => {
+    onSave(draft);
+    toast.success('Settings saved', {
+      description: 'Your preferences have been updated.',
+    });
+  };
+
+  const handleCancel = () => {
+    setDraft({ ...settings }); // Revert to last saved
+    toast.info('Changes discarded');
+  };
+
   return (
     <div className="flex-1 overflow-auto bg-gray-50">
       {/* Header */}
@@ -18,6 +42,7 @@ export function Settings() {
 
       <div className="p-8">
         <div className="max-w-4xl mx-auto space-y-6">
+
           {/* Risk Sensitivity */}
           <Card>
             <CardHeader>
@@ -36,7 +61,10 @@ export function Settings() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="risk-level">Risk Assessment Level</Label>
-                <Select defaultValue="medium">
+                <Select
+                  value={draft.riskLevel}
+                  onValueChange={(val) => setDraft(d => ({ ...d, riskLevel: val as AppSettings['riskLevel'] }))}
+                >
                   <SelectTrigger id="risk-level">
                     <SelectValue />
                   </SelectTrigger>
@@ -73,10 +101,13 @@ export function Settings() {
                 <div className="space-y-0.5">
                   <Label>Auto-flag high-risk clauses</Label>
                   <p className="text-sm text-muted-foreground">
-                    Automatically mark clauses with risk scores above 70
+                    Highlight contracts with high-risk clauses on the dashboard
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={draft.autoFlag}
+                  onCheckedChange={(val) => setDraft(d => ({ ...d, autoFlag: val }))}
+                />
               </div>
 
               <div className="flex items-center justify-between py-3 border-t border-border">
@@ -86,7 +117,10 @@ export function Settings() {
                     Get notified when high-risk contracts are uploaded
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={draft.sendAlerts}
+                  onCheckedChange={(val) => setDraft(d => ({ ...d, sendAlerts: val }))}
+                />
               </div>
             </CardContent>
           </Card>
@@ -99,7 +133,10 @@ export function Settings() {
                   <FileText className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <CardTitle>Default Industry Templates</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    Default Industry Templates
+                    <Badge variant="outline" className="text-xs text-muted-foreground font-normal">Stored · Coming soon</Badge>
+                  </CardTitle>
                   <CardDescription>
                     Set default risk assessment templates based on industry
                   </CardDescription>
@@ -109,15 +146,18 @@ export function Settings() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="default-industry">Default Industry</Label>
-                <Select defaultValue="technology">
+                <Select
+                  value={draft.industry}
+                  onValueChange={(val) => setDraft(d => ({ ...d, industry: val }))}
+                >
                   <SelectTrigger id="default-industry">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="technology">Technology</SelectItem>
-                    <SelectItem value="finance">Finance & Banking</SelectItem>
+                    <SelectItem value="finance">Finance &amp; Banking</SelectItem>
                     <SelectItem value="healthcare">Healthcare</SelectItem>
-                    <SelectItem value="retail">Retail & E-commerce</SelectItem>
+                    <SelectItem value="retail">Retail &amp; E-commerce</SelectItem>
                     <SelectItem value="manufacturing">Manufacturing</SelectItem>
                     <SelectItem value="real-estate">Real Estate</SelectItem>
                   </SelectContent>
@@ -126,7 +166,10 @@ export function Settings() {
 
               <div className="space-y-2">
                 <Label htmlFor="contract-template">Default Contract Type</Label>
-                <Select defaultValue="service">
+                <Select
+                  value={draft.contractType}
+                  onValueChange={(val) => setDraft(d => ({ ...d, contractType: val }))}
+                >
                   <SelectTrigger id="contract-template">
                     <SelectValue />
                   </SelectTrigger>
@@ -140,6 +183,9 @@ export function Settings() {
                   </SelectContent>
                 </Select>
               </div>
+              <p className="text-xs text-muted-foreground pt-1">
+                ℹ️ These preferences are saved and will be passed to the analysis engine in a future update.
+              </p>
             </CardContent>
           </Card>
 
@@ -166,7 +212,10 @@ export function Settings() {
                     Override default clauses with your organization's standards
                   </p>
                 </div>
-                <Switch />
+                <Switch
+                  checked={draft.useCustomLibrary}
+                  onCheckedChange={(val) => setDraft(d => ({ ...d, useCustomLibrary: val }))}
+                />
               </div>
 
               <div className="flex items-center justify-between py-3 border-t border-border">
@@ -176,13 +225,17 @@ export function Settings() {
                     Let AI suggest improvements to your golden clauses
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={draft.allowSuggestions}
+                  onCheckedChange={(val) => setDraft(d => ({ ...d, allowSuggestions: val }))}
+                />
               </div>
 
               <div className="pt-3 border-t border-border">
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full" disabled>
                   <FileText className="w-4 h-4 mr-2" />
                   Import Custom Clause Library
+                  <Badge variant="outline" className="ml-2 text-xs">Coming soon</Badge>
                 </Button>
               </div>
             </CardContent>
@@ -196,7 +249,7 @@ export function Settings() {
                   <Users className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <CardTitle>User Roles & Permissions</CardTitle>
+                  <CardTitle>User Roles &amp; Permissions</CardTitle>
                   <CardDescription>
                     Manage access levels for your team members
                   </CardDescription>
@@ -213,7 +266,7 @@ export function Settings() {
                     </p>
                     <Badge variant="secondary" className="text-xs">3 users</Badge>
                   </div>
-                  
+
                   <div className="p-4 border border-border rounded-lg">
                     <h4 className="font-medium text-sm mb-1">Reviewer</h4>
                     <p className="text-xs text-muted-foreground mb-2">
@@ -221,7 +274,7 @@ export function Settings() {
                     </p>
                     <Badge variant="secondary" className="text-xs">12 users</Badge>
                   </div>
-                  
+
                   <div className="p-4 border border-border rounded-lg">
                     <h4 className="font-medium text-sm mb-1">Viewer</h4>
                     <p className="text-xs text-muted-foreground mb-2">
@@ -231,19 +284,23 @@ export function Settings() {
                   </div>
                 </div>
 
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full" disabled>
                   <Users className="w-4 h-4 mr-2" />
                   Manage Team Members
+                  <Badge variant="outline" className="ml-2 text-xs">Coming soon</Badge>
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Save Button */}
+          {/* Save / Cancel */}
           <div className="flex justify-end gap-3">
-            <Button variant="outline">Cancel</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700">Save Changes</Button>
+            <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSave}>
+              Save Changes
+            </Button>
           </div>
+
         </div>
       </div>
     </div>

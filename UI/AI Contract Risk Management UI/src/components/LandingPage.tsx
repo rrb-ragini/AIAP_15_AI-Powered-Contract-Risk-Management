@@ -1,6 +1,7 @@
 import { ShieldCheck, FileText, ArrowRight, Lock, Zap, AlertTriangle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
+import { BRAND } from '../config/brand';
 
 interface LandingPageProps {
     onStart: () => void;
@@ -12,10 +13,20 @@ export function LandingPage({ onStart }: LandingPageProps) {
             {/* Navbar */}
             <header style={{ padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', backgroundColor: '#ffffff', position: 'sticky', top: 0, zIndex: 50 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 40, height: 40, backgroundColor: '#2563eb', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <ShieldCheck style={{ width: 22, height: 22, color: '#fff' }} />
-                    </div>
-                    <span style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', letterSpacing: '-0.5px' }}>ContractGuard AI</span>
+                    {BRAND.LOGO_PATH ? (
+                        <img
+                            src={BRAND.LOGO_PATH}
+                            alt={BRAND.APP_NAME}
+                            style={{ height: BRAND.LOGO_HEIGHT, width: 'auto', objectFit: 'contain' }}
+                        />
+                    ) : (
+                        <>
+                            <div style={{ width: 40, height: 40, backgroundColor: '#2563eb', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <ShieldCheck style={{ width: 22, height: 22, color: '#fff' }} />
+                            </div>
+                            <span style={{ fontSize: 20, fontWeight: 700, color: '#1e3a8a', letterSpacing: '-0.5px' }}>{BRAND.APP_NAME}</span>
+                        </>
+                    )}
                 </div>
                 <div style={{ display: 'flex', gap: 32, fontSize: 14, fontWeight: 500, color: '#4b5563' }}>
                     <a href="#features" style={{ color: '#4b5563', textDecoration: 'none' }}>Features</a>
@@ -97,11 +108,21 @@ export function LandingPage({ onStart }: LandingPageProps) {
             {/* Footer */}
             <footer style={{ backgroundColor: '#111827', padding: '40px 24px', textAlign: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-                    <ShieldCheck style={{ width: 20, height: 20, color: '#9ca3af' }} />
-                    <span style={{ fontSize: 18, fontWeight: 700, color: '#e5e7eb' }}>ContractGuard</span>
+                    {BRAND.LOGO_PATH ? (
+                        <img
+                            src={BRAND.LOGO_PATH}
+                            alt={BRAND.APP_NAME}
+                            style={{ height: 28, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+                        />
+                    ) : (
+                        <>
+                            <ShieldCheck style={{ width: 20, height: 20, color: '#9ca3af' }} />
+                            <span style={{ fontSize: 18, fontWeight: 700, color: '#e5e7eb' }}>{BRAND.APP_NAME}</span>
+                        </>
+                    )}
                 </div>
                 <p style={{ fontSize: 13, color: '#6b7280' }}>
-                    © {new Date().getFullYear()} ContractGuard AI. Designed for product concept validation.
+                    © {new Date().getFullYear()} {BRAND.APP_NAME}. Designed for product concept validation.
                 </p>
             </footer>
         </div>

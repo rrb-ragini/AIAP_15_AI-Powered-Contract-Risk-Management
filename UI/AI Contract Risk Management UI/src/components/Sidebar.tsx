@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   History
 } from 'lucide-react';
+import { BRAND } from '../config/brand';
 
 interface SidebarProps {
   activeView: string;
@@ -58,13 +59,25 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         {/* Logo/Header */}
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">ContractGuard</h1>
-              <p className="text-xs text-muted-foreground">Risk Management</p>
-            </div>
+            {BRAND.LOGO_PATH ? (
+              // ── Logo image mode: drop your file in public/ and set LOGO_PATH in brand.ts ──
+              <img
+                src={BRAND.LOGO_PATH}
+                alt={BRAND.APP_NAME}
+                style={{ height: BRAND.LOGO_HEIGHT, width: 'auto', objectFit: 'contain' }}
+              />
+            ) : (
+              // ── Fallback: ShieldCheck icon + app name text ──
+              <>
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold">{BRAND.APP_NAME}</h1>
+                  <p className="text-xs text-muted-foreground">{BRAND.TAGLINE}</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

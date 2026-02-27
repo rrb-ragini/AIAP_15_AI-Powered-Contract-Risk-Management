@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { AlertTriangle, CheckCircle, AlertCircle, Download, FileText, ChevronLeft, ChevronRight, TrendingUp, Flag, Lightbulb, ClipboardList, Loader2, Maximize2, X } from 'lucide-react';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
+import { BRAND } from '../config/brand';
 import { generateAnnotatedPdf } from '../utils/generateAnnotatedPdf';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -46,7 +47,7 @@ export function ContractReview({ results, filename, contractText, file }: Contra
   const handleClauseSelect = (clause: any) => {
     setSelectedClause(clause);
     setActiveTab('analysis');
-    toast.info(`Selected: ${clause.golden_clause_type || 'Clause'}`);
+    // Selection is reflected immediately in the right panel — no toast needed
   };
 
   const getRiskIcon = (level: string) => {
@@ -200,7 +201,7 @@ export function ContractReview({ results, filename, contractText, file }: Contra
     doc.setFontSize(16);
     doc.setFont('Helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('ContractGuard AI — Risk Review Report', margin, 28);
+    doc.text(`${BRAND.REPORT_BRAND_NAME} — Risk Review Report`, margin, 28);
     y = 68;
 
     addText(`Document: ${filename}`, { size: 11, bold: true });
@@ -275,7 +276,7 @@ export function ContractReview({ results, filename, contractText, file }: Contra
       doc.setFontSize(8);
       doc.setFont('Helvetica', 'normal');
       doc.setTextColor(160, 160, 160);
-      doc.text(`ContractGuard AI  |  Page ${i} of ${totalPages}  |  Confidential`, margin, doc.internal.pageSize.getHeight() - 20);
+      doc.text(`${BRAND.REPORT_FOOTER}  |  Page ${i} of ${totalPages}  |  Confidential`, margin, doc.internal.pageSize.getHeight() - 20);
     }
 
     doc.save(`risk_report_${filename.replace(/\.[^.]+$/, '')}.pdf`);
