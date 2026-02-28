@@ -1,1 +1,1 @@
-{"total_contracts": 2, "high_risk_contracts": 2, "total_risky_clauses": 30, "avg_risk_score": 4.794117647058824, "total_clauses": 34, "risk_distribution": {"high": 9, "medium": 14, "low": 7, "none": 4}, "business_impact": {"cash_flow": 2, "legal": 2, "ops": 22}}
+{"total_contracts": 3, "high_risk_contracts": 3, "total_risky_clauses": 46, "avg_risk_score": 5.1078431372549025, "total_clauses": 51, "risk_distribution": {"high": 17, "medium": 20, "low": 9, "none": 5}, "business_impact": {"cash_flow": 3, "legal": 3, "ops": 33}}

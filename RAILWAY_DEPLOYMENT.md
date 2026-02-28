@@ -52,7 +52,7 @@ Ensure these files are committed and pushed before setting up Railway:
 
    | Variable | Value |
    |---|---|
-   | `VITE_API_BASE_URL` | Backend URL from Step 2 |
+   | `VITE_API_BASE_URL` | Backend URL from Step 2 — **must include `https://`** (e.g. `https://xxx.up.railway.app`) |
 
 4. Click **Deploy** → Railway runs `npm ci && npm run build` then `npm start` (which runs `serve -s build -l $PORT`)
 5. **Settings → Networking → Generate Domain** → enter any port number
@@ -71,7 +71,7 @@ Backend service → **Variables** → fill in:
 
 | Variable | Value |
 |---|---|
-| `FRONTEND_URL` | Frontend URL from Step 3 |
+| `FRONTEND_URL` | Frontend URL from Step 3 — **must include `https://`**, no trailing slash (e.g. `https://yyy.up.railway.app`) |
 
 Railway restarts the backend automatically — no redeploy needed.
 
@@ -95,8 +95,10 @@ Railway restarts the backend automatically — no redeploy needed.
 | 502 on frontend | Domain port ≠ serve port | Check Deploy Logs for actual port, update domain port to match |
 | Build fails (`npm ci` lock file error) | `package-lock.json` out of sync | Run `npm install` locally, commit and push `package-lock.json` |
 | Node version error | Railway using Node 18 | Ensure `.node-version` file with `20` is committed |
+| API calls fail | `VITE_API_BASE_URL` missing `https://` | Value must start with `https://` — if not, requests go to the wrong URL |
 | API calls fail | `VITE_API_BASE_URL` not set or set after build | Set variable, then redeploy frontend |
-| CORS error | `FRONTEND_URL` not set on backend | Add frontend URL to backend variables |
+| CORS error on response | `FRONTEND_URL` missing `https://` | Value must include `https://`, exact domain, no trailing slash |
+| CORS error on response | `FRONTEND_URL` not set on backend | Add frontend URL to backend variables |
 
 ---
 
