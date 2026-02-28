@@ -21,7 +21,7 @@ export const BRAND = {
     // When set:  shows logo image instead of the ShieldCheck icon + APP_NAME text.
     // When null: falls back to ShieldCheck icon + APP_NAME text.
     LOGO_PATH: '/logo.png' as string | null,
-    LOGO_HEIGHT: 80,  // px
+    LOGO_HEIGHT: 56,  // px
 
     // ─── Meta / SEO ───────────────────────────────────────────────────────────
     META_DESCRIPTION: 'AI-powered contract risk analysis. Identify high-risk clauses, get suggested corrections, and protect your business.',
